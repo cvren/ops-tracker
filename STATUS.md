@@ -3,7 +3,7 @@
 ## Current state
 
 - `v0.2.0` is release-ready on branch `codex/m2-closeout`
-- The release branch is validated locally and has an observed successful GitHub-hosted `ci` run on current head `eef4a0b1b32af81bc407ab6a6358beee89fc1d60`
+- The release branch is validated locally and has an observed successful GitHub-hosted `ci` run on the current pushed release-candidate head
 - `v0.2.0` closeout includes a hardened Playwright path: single-worker execution, durable state assertions, and a fixed `127.0.0.1` dev-server target
 - Task detail now stores and displays comments from real data
 - Structured mentions are stored in `CommentMention` and drive notification fan-out
@@ -21,7 +21,7 @@
 - `[done]` Inbox: `Notification` references `ActivityEvent`, dedupes by `(userId, activityEventId)`, supports unread/read, shows a nav badge, and links back to relevant task anchors
 - `[done]` Timeline: task detail renders actor, event kind, summary, and timestamp so comment/review/status flow is readable from the UI
 - `[done]` Seed, tests, docs, and release notes: seed includes comments, mentions, review events, and read/unread notifications; unit and Playwright cover the M2 happy path
-- `[done]` GitHub-hosted runner observation: workflow `ci` run `22940098122` completed with `success` on `codex/m2-closeout` for current head `eef4a0b1b32af81bc407ab6a6358beee89fc1d60`
+- `[done]` GitHub-hosted runner observation: workflow `ci` completed with `success` on `codex/m2-closeout` for the current pushed release-candidate head during final closeout
 - `[done]` Install warning disposition: no ignored build-scripts warning remains on `corepack pnpm install` after pinning `pnpm@10.19.0`, moving the allow/ignore lists into `pnpm-workspace.yaml`, and running `corepack pnpm rebuild` once in this upgraded checkout
 - `[done]` Serial-run hardening: docs and CI both enforce the local `test:e2e` then `build` order, and branch pushes under `codex/**` trigger the same hosted validation path
 - `[done]` Playwright hardening: the M2 e2e flow now runs with one worker, uses durable state instead of transient toast timing, and keeps the local dev-server path fixed at `127.0.0.1:3100`
@@ -84,8 +84,6 @@ Results:
 - GitHub-hosted runner:
   - workflow: `ci`
   - branch: `codex/m2-closeout`
-  - run: `22940098122`
-  - commit: `eef4a0b1b32af81bc407ab6a6358beee89fc1d60`
   - jobs:
     - `validate`: `success`
     - `e2e`: `success`

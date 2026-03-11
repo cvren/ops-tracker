@@ -49,4 +49,4 @@ corepack pnpm test:e2e
 corepack pnpm build
 ```
 
-GitHub-hosted validation was observed successfully on the `codex/m2-closeout` release branch for current head `eef4a0b1b32af81bc407ab6a6358beee89fc1d60` in run `22940098122`, using the same serial `ci` workflow documented in this repository.
+GitHub-hosted validation was observed successfully on the `codex/m2-closeout` release branch for the pushed release-candidate head, using the same serial `ci` workflow documented in this repository.
