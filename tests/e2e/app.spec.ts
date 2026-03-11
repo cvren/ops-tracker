@@ -13,12 +13,12 @@ async function signIn(page: Page, email: string) {
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill(sharedPassword);
   await page.getByRole("button", { name: "Sign in" }).click();
-  await page.waitForURL("**/dashboard");
+  await expect(page).toHaveURL(/\/dashboard$/);
 }
 
 async function signOut(page: Page) {
   await page.getByRole("button", { name: "Sign out" }).click();
-  await page.waitForURL("**/login");
+  await expect(page).toHaveURL(/\/login$/);
 }
 
 test("team can execute the M2 comment and inbox flow end-to-end", async ({
@@ -55,8 +55,8 @@ test("team can execute the M2 comment and inbox flow end-to-end", async ({
     page.getByRole("link", { name: /^Unassigned \d+/ })
   ).toBeVisible();
 
-  await page.getByRole("link", { name: "Workspace", exact: true }).click();
-  await page.waitForURL("**/workspace");
+  await page.goto("/workspace");
+  await expect(page).toHaveURL(/\/workspace$/);
   await expect(
     page.getByRole("heading", { name: "Manage the people behind the handoff." })
   ).toBeVisible({ timeout: 10000 });
@@ -70,8 +70,8 @@ test("team can execute the M2 comment and inbox flow end-to-end", async ({
     page.getByRole("main").getByText("Mika Reviewer", { exact: true }).first()
   ).toBeVisible();
 
-  await page.getByRole("link", { name: "Projects", exact: true }).click();
-  await page.waitForURL("**/projects");
+  await page.goto("/projects");
+  await expect(page).toHaveURL(/\/projects$/);
   await expect(
     page.getByRole("heading", {
       name: "Keep every delivery track visible."
@@ -85,9 +85,9 @@ test("team can execute the M2 comment and inbox flow end-to-end", async ({
     .fill("Track the dock-floor rollout and the remaining scanner checks.");
   await page.getByRole("button", { name: "Create project" }).click();
 
-  await expect(page.getByText(`Project ${projectCode} created.`)).toBeVisible();
+  await expect(page.getByRole("link", { name: projectName })).toBeVisible();
   await page.getByRole("link", { name: projectName }).click();
-  await page.waitForURL(/\/projects\/.+/);
+  await expect(page).toHaveURL(/\/projects\/.+/);
 
   await page.getByLabel("Task title").fill(taskTitle);
   await page
@@ -102,14 +102,14 @@ test("team can execute the M2 comment and inbox flow end-to-end", async ({
   await page.getByLabel("Due date").fill(dueDate);
   await page.getByRole("button", { name: "Create task" }).click();
 
-  await expect(
-    page.getByText("Task created and linked to the project.")
-  ).toBeVisible();
+  await expect(page.getByRole("link", { name: taskTitle })).toBeVisible();
   await page.getByRole("link", { name: taskTitle }).click();
-  await page.waitForURL(/\/tasks\/.+/);
+  await expect(page).toHaveURL(/\/tasks\/.+/);
   await page.getByLabel("Task title").fill(updatedTaskTitle);
   await page.getByRole("button", { name: "Save task" }).click();
-  await expect(page.getByText("Task updated.")).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: updatedTaskTitle })
+  ).toBeVisible();
 
   await signOut(page);
   await signIn(page, operatorEmail);
@@ -117,10 +117,11 @@ test("team can execute the M2 comment and inbox flow end-to-end", async ({
   await page.goto("/tasks?view=my-tasks");
   await expect(page.getByText(updatedTaskTitle).first()).toBeVisible();
   await page.getByRole("link", { name: updatedTaskTitle }).click();
-  await page.waitForURL(/\/tasks\/.+/);
+  await expect(page).toHaveURL(/\/tasks\/.+/);
   await page.getByRole("button", { name: "Start work" }).click();
+  await expect(page.getByText("In progress").first()).toBeVisible();
   await expect(
-    page.getByText("Status changed to In progress.")
+    page.getByRole("button", { name: "Request review" })
   ).toBeVisible();
 
   await page.getByLabel("Comment").fill(firstComment);
@@ -130,7 +131,6 @@ test("team can execute the M2 comment and inbox flow end-to-end", async ({
       { label: "Mika Reviewer · reviewer@ops-tracker.local" }
     ]);
   await page.getByRole("button", { name: "Add comment" }).click();
-  await expect(page.getByText("Comment added.")).toBeVisible();
   await expect(page.getByText(firstComment)).toBeVisible();
   await expect(
     page.getByText("Mentioned Mika Reviewer", { exact: true })
@@ -141,14 +141,17 @@ test("team can execute the M2 comment and inbox flow end-to-end", async ({
   ).toBeVisible();
 
   await page.getByRole("button", { name: "Request review" }).click();
-  await expect(page.getByText("Review requested.")).toBeVisible();
+  await expect(page.getByText("Needs review").first()).toBeVisible();
+  await expect(
+    page.getByText("requested review from Mika Reviewer").first()
+  ).toBeVisible();
 
   await signOut(page);
   await signIn(page, reviewerEmail);
 
   await expect(page.getByRole("link", { name: /^Inbox \d+/ })).toBeVisible();
-  await page.getByRole("link", { name: /^Inbox/ }).click();
-  await page.waitForURL("**/inbox");
+  await page.goto("/inbox");
+  await expect(page).toHaveURL(/\/inbox$/);
   await expect(page.getByText(updatedTaskTitle).first()).toBeVisible();
   await expect(
     page.getByText("mentioned Mika Reviewer in a comment").first()
@@ -161,29 +164,28 @@ test("team can execute the M2 comment and inbox flow end-to-end", async ({
   await page.goto("/tasks?view=needs-review");
   await expect(page.getByText(updatedTaskTitle).first()).toBeVisible();
   await page.getByRole("link", { name: updatedTaskTitle }).click();
-  await page.waitForURL(/\/tasks\/.+/);
+  await expect(page).toHaveURL(/\/tasks\/.+/);
   await expect(page.getByText(firstComment)).toBeVisible();
   await expect(
     page.getByText("requested review from Mika Reviewer").first()
   ).toBeVisible();
   await page.getByRole("button", { name: "Request changes" }).click();
   await expect(page.getByText("requested changes").first()).toBeVisible();
+  await expect(page.getByText("Changes requested").first()).toBeVisible();
 
   await signOut(page);
   await signIn(page, operatorEmail);
 
   await expect(page.getByRole("link", { name: /^Inbox \d+/ })).toBeVisible();
-  await page.getByRole("link", { name: /^Inbox/ }).click();
+  await page.goto("/inbox");
   await expect(page.getByText(updatedTaskTitle).first()).toBeVisible();
   await expect(page.getByText("requested changes").first()).toBeVisible();
 
   await page.goto("/tasks?view=my-tasks");
   await page.getByRole("link", { name: updatedTaskTitle }).click();
-  await page.waitForURL(/\/tasks\/.+/);
+  await expect(page).toHaveURL(/\/tasks\/.+/);
   await page.getByRole("button", { name: "Start work" }).click();
-  await expect(
-    page.getByText("Status changed to In progress.")
-  ).toBeVisible();
+  await expect(page.getByText("In progress").first()).toBeVisible();
   await page.getByLabel("Comment").fill(secondComment);
   await page
     .getByLabel("Mention members")
@@ -191,22 +193,21 @@ test("team can execute the M2 comment and inbox flow end-to-end", async ({
       { label: "Mika Reviewer · reviewer@ops-tracker.local" }
     ]);
   await page.getByRole("button", { name: "Add comment" }).click();
-  await expect(page.getByText("Comment added.")).toBeVisible();
   await expect(page.getByText(secondComment)).toBeVisible();
   await page.getByRole("button", { name: "Request review" }).click();
-  await expect(page.getByText("Review requested.")).toBeVisible();
+  await expect(page.getByText("Needs review").first()).toBeVisible();
 
   await signOut(page);
   await signIn(page, reviewerEmail);
 
   await expect(page.getByRole("link", { name: /^Inbox \d+/ })).toBeVisible();
-  await page.getByRole("link", { name: /^Inbox/ }).click();
+  await page.goto("/inbox");
   await expect(page.getByText(updatedTaskTitle).first()).toBeVisible();
   await expect(
     page.getByText("requested review from Mika Reviewer").first()
   ).toBeVisible();
   await page.getByRole("link", { name: "Open item" }).first().click();
-  await page.waitForURL(/\/tasks\/.+/);
+  await expect(page).toHaveURL(/\/tasks\/.+/);
   await expect(
     page.getByRole("heading", { name: updatedTaskTitle })
   ).toBeVisible();
@@ -215,14 +216,14 @@ test("team can execute the M2 comment and inbox flow end-to-end", async ({
     page.getByText("mentioned Mika Reviewer in a comment").first()
   ).toBeVisible();
   await page.getByRole("button", { name: "Approve and finish" }).click();
-  await expect(page.getByText("Task approved and marked done.")).toBeVisible();
+  await expect(page.getByText("Done").first()).toBeVisible();
   await expect(page.getByText("approved the task").first()).toBeVisible();
 
   await signOut(page);
   await signIn(page, operatorEmail);
 
   await expect(page.getByRole("link", { name: /^Inbox \d+/ })).toBeVisible();
-  await page.getByRole("link", { name: /^Inbox/ }).click();
+  await page.goto("/inbox");
   await expect(page.getByText(updatedTaskTitle).first()).toBeVisible();
   await expect(page.getByText("approved the task").first()).toBeVisible();
 

@@ -5,7 +5,7 @@ import {
   type Task,
   type TaskPriority
 } from "@prisma/client";
-import { useActionState, useEffect } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { updateTaskAction } from "@/app/actions/task-actions";
@@ -55,12 +55,34 @@ export function TaskEditForm({
     updateTaskAction,
     INITIAL_ACTION_STATE
   );
+  const [persistedMessage, setPersistedMessage] = useState<string | null>(null);
+  const feedbackStorageKey = `ops-tracker:task-edit-feedback:${task.id}`;
+
+  useEffect(() => {
+    const storedMessage = window.sessionStorage.getItem(feedbackStorageKey);
+
+    if (storedMessage) {
+      setPersistedMessage(storedMessage);
+      window.sessionStorage.removeItem(feedbackStorageKey);
+    }
+  }, [feedbackStorageKey]);
 
   useEffect(() => {
     if (state.status === "success") {
+      const nextMessage = state.message ?? "Task updated.";
+      setPersistedMessage(nextMessage);
+      window.sessionStorage.setItem(feedbackStorageKey, nextMessage);
       router.refresh();
     }
-  }, [router, state.status]);
+  }, [feedbackStorageKey, router, state.message, state.status]);
+
+  const feedbackState =
+    state.status === "idle" && persistedMessage
+      ? {
+          status: "success" as const,
+          message: persistedMessage
+        }
+      : state;
 
   return (
     <Panel className="space-y-5">
@@ -76,7 +98,14 @@ export function TaskEditForm({
           handoff happens in the workflow panel beside this form.
         </p>
       </div>
-      <form action={formAction} className="space-y-4">
+      <form
+        action={formAction}
+        className="space-y-4"
+        onSubmit={() => {
+          setPersistedMessage(null);
+          window.sessionStorage.removeItem(feedbackStorageKey);
+        }}
+      >
         <input type="hidden" name="taskId" value={task.id} />
         <input type="hidden" name="status" value={task.status} />
         <div className="space-y-2">
@@ -231,7 +260,7 @@ export function TaskEditForm({
             />
           </div>
         </div>
-        <ActionFeedback state={state} />
+        <ActionFeedback state={feedbackState} />
         <SubmitButton label="Save task" pendingLabel="Saving..." />
       </form>
     </Panel>

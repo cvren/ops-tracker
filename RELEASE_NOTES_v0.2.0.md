@@ -21,6 +21,7 @@
 - `pnpm` is now pinned to `10.19.0`, with build-script policy stored in `pnpm-workspace.yaml`, which removes the prior ignored build-scripts warning on install
 - Seed data now includes comments, mentions, unread notifications, and read notifications
 - Playwright now covers comment, mention, inbox, changes requested, re-review, and done
+- Playwright closeout hardening now keeps the M2 flow on one worker, waits on durable task/project state instead of transient toast timing, and uses a fixed `127.0.0.1:3100` dev-server path
 - GitHub Actions now validates `codex/**` branch pushes as well as `main` and pull requests
 - README, `SPEC.md`, `PLAN.md`, and `STATUS.md` now reflect the final M2 closeout state
 
@@ -41,4 +42,4 @@ corepack pnpm test:e2e
 corepack pnpm build
 ```
 
-GitHub-hosted validation was also observed on [run `22938471401`](https://github.com/cvren/ops-tracker/actions/runs/22938471401) for branch `codex/m2-closeout`, commit `4cb5c1b`, with overall result `success`.
+GitHub-hosted validation uses the same serial path on `main`, `pull_request`, and `codex/**` branch pushes. Final M2 closeout requires observing the pushed `codex/m2-closeout` branch head on that workflow.

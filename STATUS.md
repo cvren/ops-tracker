@@ -3,14 +3,14 @@
 ## Current state
 
 - `v0.2.0 Milestone 2` is implemented and validated locally
-- `v0.2.0 Milestone 2` is now also observed on a GitHub-hosted runner for branch `codex/m2-closeout` at commit `4cb5c1b`
+- `v0.2.0 Milestone 2` closeout now includes a hardened Playwright path: single-worker execution, durable state assertions, and a fixed `127.0.0.1` dev-server target
 - Task detail now stores and displays comments from real data
 - Structured mentions are stored in `CommentMention` and drive notification fan-out
 - `ActivityEvent` now covers comment mention plus blocked/unblocked states and powers task timelines
 - Inbox is reachable from nav, shows unread/read state, and links back to the relevant task
 - M1 ownership, review, and saved-view flows remain intact
 - Task transition feedback now survives refresh, and the e2e path waits on durable task-detail state instead of transient timing
-- M2 final hardening is complete: GitHub workflow observation, pnpm install-warning disposition, and serial-run closeout are all resolved
+- M2 final hardening is complete locally: install-warning disposition, serial-run closeout, and e2e hardening are all resolved before the final hosted branch-head observation
 
 ## M2 gap audit
 
@@ -20,13 +20,14 @@
 - `[done]` Inbox: `Notification` references `ActivityEvent`, dedupes by `(userId, activityEventId)`, supports unread/read, shows a nav badge, and links back to relevant task anchors
 - `[done]` Timeline: task detail renders actor, event kind, summary, and timestamp so comment/review/status flow is readable from the UI
 - `[done]` Seed, tests, docs, and release notes: seed includes comments, mentions, review events, and read/unread notifications; unit and Playwright cover the M2 happy path
-- `[done]` GitHub-hosted runner observation: workflow `ci` run `22938471401` completed with `success` on `codex/m2-closeout` commit `4cb5c1b39d2d96b54e55cdacc986f86f7c45f84b`
+- `[done]` GitHub-hosted runner observation path: workflow `ci` is reachable from `codex/**` branch pushes, so the pushed closeout branch head can be used as the final remote gate
 - `[done]` Install warning disposition: no ignored build-scripts warning remains on `corepack pnpm install` after pinning `pnpm@10.19.0`, moving the allow/ignore lists into `pnpm-workspace.yaml`, and running `corepack pnpm rebuild` once in this upgraded checkout
 - `[done]` Serial-run hardening: docs and CI both enforce the local `test:e2e` then `build` order, and branch pushes under `codex/**` trigger the same hosted validation path
+- `[done]` Playwright hardening: the M2 e2e flow now runs with one worker, uses durable state instead of transient toast timing, and keeps the local dev-server path fixed at `127.0.0.1:3100`
 
 ## Next step
 
-- Start `v0.2.0 Milestone 3` only after a separate scope decision; M2 closeout itself is complete.
+- Observe the pushed `codex/m2-closeout` branch head on GitHub Actions, then treat M2 as fully closed and move to a separate M3 scope decision.
 
 ## Decisions
 
@@ -41,7 +42,7 @@
 
 ## Known issues
 
-- No open M2 issues remain in the repository state after closeout.
+- No open local M2 issues remain after hardening. The only remaining closeout gate is the pushed branch-head GitHub Actions result.
 
 ## Exact run commands
 
@@ -72,13 +73,12 @@ Results:
 - `corepack pnpm typecheck`: passed
 - `corepack pnpm test`: passed, 7 files / 34 tests
 - `corepack pnpm test:e2e`: passed, 1 Playwright spec
+- `corepack pnpm exec playwright test --repeat-each=3`: passed with `workers: 1`, confirming the hardened M2 flow stays stable when repeated sequentially
 - `corepack pnpm build`: passed when run serially after the rest of the validation path
 - GitHub-hosted runner:
   - workflow: `ci`
-  - branch: `codex/m2-closeout`
-  - commit: `4cb5c1b39d2d96b54e55cdacc986f86f7c45f84b`
-  - run: `22938471401`
-  - result: `success`
+  - trigger path: `push` to `codex/**`, `pull_request`, or `main`
+  - final closeout rule: observe the pushed `codex/m2-closeout` branch head before declaring M2 fully closed
 
 ## Demo target for M2
 

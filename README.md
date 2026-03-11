@@ -119,6 +119,7 @@ Required values are documented in `.env.example`:
 Run these commands serially:
 
 - Do not overlap `corepack pnpm test:e2e` and `corepack pnpm build` in the same working tree; both rely on `.next` artifacts.
+- `corepack pnpm test:e2e` is intentionally single-worker because the seeded M2 flow mutates shared workspace state and should mirror the serial GitHub validation path.
 
 ```bash
 corepack pnpm install
@@ -143,13 +144,14 @@ corepack pnpm build
 - `corepack pnpm db:seed` already completed
 
 Playwright starts its own Next.js dev server on port `3100`.
+- The Playwright base URL and dev server both use `127.0.0.1:3100` to avoid local hostname variance during closeout validation.
 
 ## CI
 
 GitHub Actions runs the same serial validation path in `.github/workflows/ci.yml`.
 
 - Triggers: `main`, `pull_request`, and `codex/**` branch pushes
-- Observed M2 closeout run: [run `22938471401`](https://github.com/cvren/ops-tracker/actions/runs/22938471401) on branch `codex/m2-closeout` finished with `success`
+- Closeout rule: observe the pushed `codex/m2-closeout` branch head on GitHub Actions before declaring M2 fully closed
 
 ## API surface
 

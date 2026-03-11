@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useRef } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { addTaskCommentAction } from "@/app/actions/task-actions";
@@ -27,13 +27,35 @@ export function TaskCommentForm({ taskId, users }: TaskCommentFormProps) {
     INITIAL_ACTION_STATE
   );
   const formRef = useRef<HTMLFormElement>(null);
+  const [persistedMessage, setPersistedMessage] = useState<string | null>(null);
+  const feedbackStorageKey = `ops-tracker:task-comment-feedback:${taskId}`;
+
+  useEffect(() => {
+    const storedMessage = window.sessionStorage.getItem(feedbackStorageKey);
+
+    if (storedMessage) {
+      setPersistedMessage(storedMessage);
+      window.sessionStorage.removeItem(feedbackStorageKey);
+    }
+  }, [feedbackStorageKey]);
 
   useEffect(() => {
     if (state.status === "success") {
+      const nextMessage = state.message ?? "Comment added.";
       formRef.current?.reset();
+      setPersistedMessage(nextMessage);
+      window.sessionStorage.setItem(feedbackStorageKey, nextMessage);
       router.refresh();
     }
-  }, [router, state.status]);
+  }, [feedbackStorageKey, router, state.message, state.status]);
+
+  const feedbackState =
+    state.status === "idle" && persistedMessage
+      ? {
+          status: "success" as const,
+          message: persistedMessage
+        }
+      : state;
 
   return (
     <Panel className="space-y-4">
@@ -45,7 +67,15 @@ export function TaskCommentForm({ taskId, users }: TaskCommentFormProps) {
           Leave context on the task
         </h2>
       </div>
-      <form ref={formRef} action={formAction} className="space-y-4">
+      <form
+        ref={formRef}
+        action={formAction}
+        className="space-y-4"
+        onSubmit={() => {
+          setPersistedMessage(null);
+          window.sessionStorage.removeItem(feedbackStorageKey);
+        }}
+      >
         <input type="hidden" name="taskId" value={taskId} />
         <div className="space-y-2">
           <label htmlFor="comment-body" className="text-sm font-medium text-ink">
@@ -81,7 +111,7 @@ export function TaskCommentForm({ taskId, users }: TaskCommentFormProps) {
             Hold Command or Control to select multiple members.
           </p>
         </div>
-        <ActionFeedback state={state} />
+        <ActionFeedback state={feedbackState} />
         <SubmitButton label="Add comment" pendingLabel="Posting..." />
       </form>
     </Panel>

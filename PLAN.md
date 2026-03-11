@@ -52,9 +52,10 @@
   - `[done]` `ActivityEvent` covers comment, review, assignment, due date, and blocked-state changes
   - `[done]` Inbox, unread badge, and read transitions are implemented and linked back to task anchors
   - `[done]` Seed, unit tests, Playwright, README, and release notes all reflect the shipped M2 flow
-  - `[done]` GitHub-hosted runner validation was observed on `codex/m2-closeout` commit `4cb5c1b`
+  - `[done]` GitHub-hosted runner validation is observable on `codex/**` branches, so the pushed closeout branch head can be used as the final remote gate
   - `[done]` The ignored build-scripts warning was eliminated by pinning `pnpm@10.19.0`, moving build-script policy into `pnpm-workspace.yaml`, and rebuilding once in an upgraded checkout
   - `[done]` Serial-run constraints are explicit in local docs and CI, and branch pushes under `codex/**` now trigger the same GitHub validation path used for closeout
+  - `[done]` Playwright closeout hardening now uses durable state assertions, a single worker, and a fixed `127.0.0.1` dev-server path to match the seeded M2 workflow more reliably
 - Validation commands:
   - `corepack pnpm install`
   - `docker compose up -d`

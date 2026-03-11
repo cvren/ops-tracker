@@ -1,7 +1,7 @@
 "use client";
 
 import { type ProjectStatus } from "@prisma/client";
-import { useActionState, useEffect, useRef } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { createProjectAction } from "@/app/actions/project-actions";
@@ -21,13 +21,35 @@ export function ProjectCreateForm() {
     INITIAL_ACTION_STATE
   );
   const formRef = useRef<HTMLFormElement>(null);
+  const [persistedMessage, setPersistedMessage] = useState<string | null>(null);
+  const feedbackStorageKey = "ops-tracker:project-create-feedback";
+
+  useEffect(() => {
+    const storedMessage = window.sessionStorage.getItem(feedbackStorageKey);
+
+    if (storedMessage) {
+      setPersistedMessage(storedMessage);
+      window.sessionStorage.removeItem(feedbackStorageKey);
+    }
+  }, []);
 
   useEffect(() => {
     if (state.status === "success") {
+      const nextMessage = state.message ?? "Project created.";
       formRef.current?.reset();
+      setPersistedMessage(nextMessage);
+      window.sessionStorage.setItem(feedbackStorageKey, nextMessage);
       router.refresh();
     }
-  }, [router, state.status]);
+  }, [feedbackStorageKey, router, state.message, state.status]);
+
+  const feedbackState =
+    state.status === "idle" && persistedMessage
+      ? {
+          status: "success" as const,
+          message: persistedMessage
+        }
+      : state;
 
   return (
     <Panel className="space-y-5">
@@ -41,7 +63,15 @@ export function ProjectCreateForm() {
           state.
         </p>
       </div>
-      <form ref={formRef} action={formAction} className="space-y-4">
+      <form
+        ref={formRef}
+        action={formAction}
+        className="space-y-4"
+        onSubmit={() => {
+          setPersistedMessage(null);
+          window.sessionStorage.removeItem(feedbackStorageKey);
+        }}
+      >
         <div className="space-y-2">
           <label htmlFor="project-name" className="text-sm font-medium text-ink">
             Project name
@@ -88,7 +118,7 @@ export function ProjectCreateForm() {
             placeholder="What is the team delivering, and what must stay visible this week?"
           />
         </div>
-        <ActionFeedback state={state} />
+        <ActionFeedback state={feedbackState} />
         <SubmitButton label="Create project" pendingLabel="Creating..." />
       </form>
     </Panel>
