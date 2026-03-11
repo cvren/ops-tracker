@@ -2,9 +2,9 @@
 
 ## Summary
 
-`ops-tracker` `v0.2.0 Milestone 2` keeps task context inside the product. Comments, activity history, and inbox notifications now make review handoff and returned work visible without depending on Slack or memory.
+`ops-tracker` `v0.2.0` keeps task context inside the product. Workspace-scoped ownership and review handoff from M1 are now paired with comments, activity history, and inbox notifications so returned work stays visible without depending on Slack or memory.
 
-## Added in M2
+## Shipped in v0.2.0
 
 - Task comment composer and comment list on the task detail page
 - Structured mentions backed by `CommentMention`
@@ -14,7 +14,7 @@
 - Nav badge for unread notification count
 - Direct links from inbox notifications back to the relevant task anchor
 
-## Changed in M2
+## Release hygiene
 
 - Notification fan-out is deduplicated and suppresses self-notifications
 - Task transition feedback now survives the refresh that updates status and timeline state
@@ -24,6 +24,13 @@
 - Playwright closeout hardening now keeps the M2 flow on one worker, waits on durable task/project state instead of transient toast timing, and uses a fixed `127.0.0.1:3100` dev-server path
 - GitHub Actions now validates `codex/**` branch pushes as well as `main` and pull requests
 - README, `SPEC.md`, `PLAN.md`, and `STATUS.md` now reflect the final M2 closeout state
+
+## Known limits
+
+- No email, Slack, push, or realtime notification delivery
+- No attachments, threaded comments, or comment edit/delete flow
+- No advanced notification preferences or bulk actions beyond mark-all-read
+- No analytics, SLA, escalation, recurring tasks, or automation features
 
 ## Validation
 
@@ -42,4 +49,4 @@ corepack pnpm test:e2e
 corepack pnpm build
 ```
 
-GitHub-hosted validation uses the same serial path on `main`, `pull_request`, and `codex/**` branch pushes. Final M2 closeout requires observing the pushed `codex/m2-closeout` branch head on that workflow.
+GitHub-hosted validation was observed successfully on the `codex/m2-closeout` release branch during finalization, using the same serial `ci` workflow documented in this repository.

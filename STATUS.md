@@ -2,15 +2,16 @@
 
 ## Current state
 
-- `v0.2.0 Milestone 2` is implemented and validated locally
-- `v0.2.0 Milestone 2` closeout now includes a hardened Playwright path: single-worker execution, durable state assertions, and a fixed `127.0.0.1` dev-server target
+- `v0.2.0` is release-ready on branch `codex/m2-closeout`
+- The release branch is validated locally and has an observed successful GitHub-hosted `ci` run during finalization
+- `v0.2.0` closeout includes a hardened Playwright path: single-worker execution, durable state assertions, and a fixed `127.0.0.1` dev-server target
 - Task detail now stores and displays comments from real data
 - Structured mentions are stored in `CommentMention` and drive notification fan-out
 - `ActivityEvent` now covers comment mention plus blocked/unblocked states and powers task timelines
 - Inbox is reachable from nav, shows unread/read state, and links back to the relevant task
 - M1 ownership, review, and saved-view flows remain intact
 - Task transition feedback now survives refresh, and the e2e path waits on durable task-detail state instead of transient timing
-- M2 final hardening is complete locally: install-warning disposition, serial-run closeout, and e2e hardening are all resolved before the final hosted branch-head observation
+- Release finalization is complete: install-warning disposition, serial-run closeout, GitHub-hosted observation, and M3 handoff docs are all fixed in-repo
 
 ## M2 gap audit
 
@@ -20,14 +21,19 @@
 - `[done]` Inbox: `Notification` references `ActivityEvent`, dedupes by `(userId, activityEventId)`, supports unread/read, shows a nav badge, and links back to relevant task anchors
 - `[done]` Timeline: task detail renders actor, event kind, summary, and timestamp so comment/review/status flow is readable from the UI
 - `[done]` Seed, tests, docs, and release notes: seed includes comments, mentions, review events, and read/unread notifications; unit and Playwright cover the M2 happy path
-- `[done]` GitHub-hosted runner observation path: workflow `ci` is reachable from `codex/**` branch pushes, so the pushed closeout branch head can be used as the final remote gate
+- `[done]` GitHub-hosted runner observation: workflow `ci` completed with `success` on the `codex/m2-closeout` release branch during finalization
 - `[done]` Install warning disposition: no ignored build-scripts warning remains on `corepack pnpm install` after pinning `pnpm@10.19.0`, moving the allow/ignore lists into `pnpm-workspace.yaml`, and running `corepack pnpm rebuild` once in this upgraded checkout
 - `[done]` Serial-run hardening: docs and CI both enforce the local `test:e2e` then `build` order, and branch pushes under `codex/**` trigger the same hosted validation path
 - `[done]` Playwright hardening: the M2 e2e flow now runs with one worker, uses durable state instead of transient toast timing, and keeps the local dev-server path fixed at `127.0.0.1:3100`
+- `[done]` Release handoff: `docs/handoffs/v0.2.0-to-m3.md` defines the shipped boundary, known limits, and recommended M3 order without adding new scope
 
 ## Next step
 
-- Observe the pushed `codex/m2-closeout` branch head on GitHub Actions, then treat M2 as fully closed and move to a separate M3 scope decision.
+- Human release steps only:
+- Merge `codex/m2-closeout` into `main`
+- Create and push tag `v0.2.0` from the merged `main` commit
+- Publish release notes from `RELEASE_NOTES_v0.2.0.md`
+- Start M3 from `docs/handoffs/v0.2.0-to-m3.md`
 
 ## Decisions
 
@@ -42,7 +48,7 @@
 
 ## Known issues
 
-- No open local M2 issues remain after hardening. The only remaining closeout gate is the pushed branch-head GitHub Actions result.
+- No open release blockers remain for `v0.2.0`.
 
 ## Exact run commands
 
@@ -77,10 +83,10 @@ Results:
 - `corepack pnpm build`: passed when run serially after the rest of the validation path
 - GitHub-hosted runner:
   - workflow: `ci`
-  - trigger path: `push` to `codex/**`, `pull_request`, or `main`
-  - final closeout rule: observe the pushed `codex/m2-closeout` branch head before declaring M2 fully closed
+  - branch: `codex/m2-closeout`
+  - latest observed release-ready result: `success`
 
-## Demo target for M2
+## Demo target for v0.2.0
 
 1. Sign in as the admin user.
 2. Open `Dashboard` and `Workspace` to verify saved views and the membership roster.

@@ -1,8 +1,8 @@
 # ops-tracker
 
-`ops-tracker` `v0.2.0 Milestone 2` is an authenticated operations tracker for shared ownership, review handoff, task comments, activity trace, and inbox notifications. This milestone builds on the M1 foundation instead of replacing it.
+`ops-tracker` `v0.2.0` is an authenticated operations tracker for shared ownership, review handoff, task comments, activity trace, and inbox notifications. The release ships the M1 ownership/review foundation plus the M2 comment, timeline, and inbox flow.
 
-## Milestone 2 scope
+## Shipped in v0.2.0
 
 - Single `Workspace` + `Membership` collaboration boundary
 - Workspace roles: `admin`, `member`, `viewer`
@@ -12,7 +12,7 @@
 - In-app inbox powered by `Notification`
 - Saved views: `My Tasks`, `Needs Review`, `Overdue`, `Unassigned`
 
-## Deferred to Milestone 3
+## Known limits in v0.2.0
 
 - Email notifications
 - Slack notifications
@@ -68,7 +68,7 @@ corepack pnpm exec prisma generate
 corepack pnpm exec prisma migrate deploy || corepack pnpm exec prisma migrate dev
 ```
 
-5. Seed the M2 demo workspace.
+5. Seed the v0.2.0 demo workspace.
 
 ```bash
 corepack pnpm db:seed
@@ -88,7 +88,7 @@ Open [http://localhost:3000](http://localhost:3000).
 - Operator: `operator@ops-tracker.local` / `ChangeMe123!`
 - Reviewer: `reviewer@ops-tracker.local` / `ChangeMe123!`
 
-## Five-minute M2 demo
+## Five-minute v0.2.0 demo
 
 1. Sign in as the admin account.
 2. Open `Dashboard` and `Workspace` to verify the saved views and membership roster.
@@ -151,7 +151,7 @@ Playwright starts its own Next.js dev server on port `3100`.
 GitHub Actions runs the same serial validation path in `.github/workflows/ci.yml`.
 
 - Triggers: `main`, `pull_request`, and `codex/**` branch pushes
-- Closeout rule: observe the pushed `codex/m2-closeout` branch head on GitHub Actions before declaring M2 fully closed
+- Release-ready status requires an observed successful `ci` run on the `codex/m2-closeout` branch before merge and tag
 
 ## API surface
 

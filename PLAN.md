@@ -28,19 +28,20 @@
      - seed data demonstrates comments, mentions, activity, and unread/read notifications
      - Playwright covers comment, mention, inbox, changes requested, re-review, and done
      - validation commands pass locally and README matches the demo
-6. M3 handoff
+6. Release-ready handoff
    - Acceptance criteria:
-     - deferred items are listed explicitly in `STATUS.md`
-     - M3 ideas do not block M2 completion
+     - docs and release notes match the final branch-head truth
+     - `docs/handoffs/v0.2.0-to-m3.md` captures shipped scope, known limits, and M3 draft boundaries
+     - human merge/tag/release steps are unambiguous
 
 ## Current cycle
 
 - Scope: Milestone 2
-- Status: completed
+- Status: release-ready
 - Acceptance:
   - M1 foundations stay intact while comments, timeline, and inbox become visible and validated
   - fan-out and activity generation stay centralized around shared helpers
-  - docs and demo steps now reflect the M2 workflow
+  - docs and demo steps now reflect the shipped `v0.2.0` workflow
 - Closeout scope:
   - observe GitHub-hosted workflow execution for the current M2 state, or record a concrete blocker
   - resolve or explicitly disposition the `corepack pnpm install` ignored build-scripts warning
@@ -56,6 +57,7 @@
   - `[done]` The ignored build-scripts warning was eliminated by pinning `pnpm@10.19.0`, moving build-script policy into `pnpm-workspace.yaml`, and rebuilding once in an upgraded checkout
   - `[done]` Serial-run constraints are explicit in local docs and CI, and branch pushes under `codex/**` now trigger the same GitHub validation path used for closeout
   - `[done]` Playwright closeout hardening now uses durable state assertions, a single worker, and a fixed `127.0.0.1` dev-server path to match the seeded M2 workflow more reliably
+  - `[done]` Release-ready docs now reflect GitHub-hosted success on the current branch head and define the exact handoff boundary into M3
 - Validation commands:
   - `corepack pnpm install`
   - `docker compose up -d`
@@ -77,6 +79,7 @@
 - Keep the product single-workspace in `v0.2.0`
 - For M2 closure, add no net-new code unless a missing behavior is reproduced from the current repository state
 - Tooling changes are allowed during closeout only when they remove ambiguity from validation or CI behavior without expanding product scope
+- `v0.2.0` release finalization adds no new product scope; it only fixes release hygiene, handoff clarity, and validation determinism
 
 ## Validation strategy
 
