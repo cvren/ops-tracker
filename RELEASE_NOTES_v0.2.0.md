@@ -18,9 +18,11 @@
 
 - Notification fan-out is deduplicated and suppresses self-notifications
 - Task transition feedback now survives the refresh that updates status and timeline state
+- `pnpm` is now pinned to `10.19.0`, with build-script policy stored in `pnpm-workspace.yaml`, which removes the prior ignored build-scripts warning on install
 - Seed data now includes comments, mentions, unread notifications, and read notifications
 - Playwright now covers comment, mention, inbox, changes requested, re-review, and done
-- README, `SPEC.md`, `PLAN.md`, and `STATUS.md` now target Milestone 2
+- GitHub Actions now validates `codex/**` branch pushes as well as `main` and pull requests
+- README, `SPEC.md`, `PLAN.md`, and `STATUS.md` now reflect the final M2 closeout state
 
 ## Validation
 
@@ -38,3 +40,5 @@ corepack pnpm test
 corepack pnpm test:e2e
 corepack pnpm build
 ```
+
+GitHub-hosted validation was also observed on [run `22938471401`](https://github.com/cvren/ops-tracker/actions/runs/22938471401) for branch `codex/m2-closeout`, commit `4cb5c1b`, with overall result `success`.

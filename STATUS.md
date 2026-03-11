@@ -3,13 +3,14 @@
 ## Current state
 
 - `v0.2.0 Milestone 2` is implemented and validated locally
+- `v0.2.0 Milestone 2` is now also observed on a GitHub-hosted runner for branch `codex/m2-closeout` at commit `4cb5c1b`
 - Task detail now stores and displays comments from real data
 - Structured mentions are stored in `CommentMention` and drive notification fan-out
 - `ActivityEvent` now covers comment mention plus blocked/unblocked states and powers task timelines
 - Inbox is reachable from nav, shows unread/read state, and links back to the relevant task
 - M1 ownership, review, and saved-view flows remain intact
 - Task transition feedback now survives refresh, and the e2e path waits on durable task-detail state instead of transient timing
-- M2 final hardening is focused only on GitHub workflow observation, pnpm install-warning disposition, and serial-run closeout
+- M2 final hardening is complete: GitHub workflow observation, pnpm install-warning disposition, and serial-run closeout are all resolved
 
 ## M2 gap audit
 
@@ -19,11 +20,13 @@
 - `[done]` Inbox: `Notification` references `ActivityEvent`, dedupes by `(userId, activityEventId)`, supports unread/read, shows a nav badge, and links back to relevant task anchors
 - `[done]` Timeline: task detail renders actor, event kind, summary, and timestamp so comment/review/status flow is readable from the UI
 - `[done]` Seed, tests, docs, and release notes: seed includes comments, mentions, review events, and read/unread notifications; unit and Playwright cover the M2 happy path
-- `[partial]` Closeout hardening: GitHub-hosted runner observation, pnpm install-warning disposition, and serial-run wording are still being audited in this pass
+- `[done]` GitHub-hosted runner observation: workflow `ci` run `22938471401` completed with `success` on `codex/m2-closeout` commit `4cb5c1b39d2d96b54e55cdacc986f86f7c45f84b`
+- `[done]` Install warning disposition: no ignored build-scripts warning remains on `corepack pnpm install` after pinning `pnpm@10.19.0`, moving the allow/ignore lists into `pnpm-workspace.yaml`, and running `corepack pnpm rebuild` once in this upgraded checkout
+- `[done]` Serial-run hardening: docs and CI both enforce the local `test:e2e` then `build` order, and branch pushes under `codex/**` trigger the same hosted validation path
 
 ## Next step
 
-- Finish M2 closeout by turning the remaining `[follow-up]` items into either observed success or concrete `[blocked]` limitations.
+- Start `v0.2.0 Milestone 3` only after a separate scope decision; M2 closeout itself is complete.
 
 ## Decisions
 
@@ -33,12 +36,12 @@
 - Notification fan-out stays centralized around shared activity helpers instead of adding a generic queue or event bus
 - Structured mention selection is used instead of free-text parsing
 - Minimal code changes are acceptable during closure only when a shipped gap is reproduced; this pass used that rule for task transition feedback persistence
+- `pnpm.onlyBuiltDependencies` is now enforced from `pnpm-workspace.yaml` under `pnpm@10.19.0`, which removes the previous install warning on a clean install
+- The GitHub Actions workflow now runs on `main`, `pull_request`, and `codex/**` branch pushes so closeout branches can be observed without opening a PR first
 
 ## Known issues
 
-- `[follow-up]` GitHub-hosted runner execution cannot be observed from this environment until the repository is connected to a remote and pushed
-- `[follow-up]` `corepack pnpm install` still emits an ignored build-scripts warning for optional/native packages, although install and all validation commands pass
-- `[follow-up]` Running `pnpm build` in parallel with `pnpm test:e2e` in the same working tree can race on `.next` artifacts and surface a transient `/_document` lookup failure; serial validation avoids the issue
+- No open M2 issues remain in the repository state after closeout.
 
 ## Exact run commands
 
@@ -59,7 +62,8 @@ corepack pnpm build
 
 Results:
 
-- `corepack pnpm install`: passed, with ignored build-scripts warning only
+- `corepack pnpm install`: passed, no ignored build-scripts warning
+- `corepack pnpm rebuild`: executed once after moving the build-script policy into `pnpm-workspace.yaml` so this upgraded checkout no longer carries stale ignored-build state
 - `docker compose up -d`: passed
 - `corepack pnpm exec prisma generate`: passed
 - `corepack pnpm exec prisma migrate deploy`: passed, no pending migrations
@@ -69,6 +73,12 @@ Results:
 - `corepack pnpm test`: passed, 7 files / 34 tests
 - `corepack pnpm test:e2e`: passed, 1 Playwright spec
 - `corepack pnpm build`: passed when run serially after the rest of the validation path
+- GitHub-hosted runner:
+  - workflow: `ci`
+  - branch: `codex/m2-closeout`
+  - commit: `4cb5c1b39d2d96b54e55cdacc986f86f7c45f84b`
+  - run: `22938471401`
+  - result: `success`
 
 ## Demo target for M2
 

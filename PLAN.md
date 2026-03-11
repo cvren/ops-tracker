@@ -36,7 +36,7 @@
 ## Current cycle
 
 - Scope: Milestone 2
-- Status: final hardening in progress
+- Status: completed
 - Acceptance:
   - M1 foundations stay intact while comments, timeline, and inbox become visible and validated
   - fan-out and activity generation stay centralized around shared helpers
@@ -52,7 +52,9 @@
   - `[done]` `ActivityEvent` covers comment, review, assignment, due date, and blocked-state changes
   - `[done]` Inbox, unread badge, and read transitions are implemented and linked back to task anchors
   - `[done]` Seed, unit tests, Playwright, README, and release notes all reflect the shipped M2 flow
-  - `[partial]` Final hardening remains open until GitHub observation, install-warning disposition, and serial-run hardening are closed
+  - `[done]` GitHub-hosted runner validation was observed on `codex/m2-closeout` commit `4cb5c1b`
+  - `[done]` The ignored build-scripts warning was eliminated by pinning `pnpm@10.19.0`, moving build-script policy into `pnpm-workspace.yaml`, and rebuilding once in an upgraded checkout
+  - `[done]` Serial-run constraints are explicit in local docs and CI, and branch pushes under `codex/**` now trigger the same GitHub validation path used for closeout
 - Validation commands:
   - `corepack pnpm install`
   - `docker compose up -d`

@@ -33,7 +33,7 @@
 ## Prerequisites
 
 - Node.js 22 or newer
-- Corepack-enabled `pnpm@10.7.0`
+- Corepack-enabled `pnpm@10.19.0`
 - Docker Desktop or a compatible Docker Engine
 
 ## Quick start
@@ -49,6 +49,11 @@ cp .env.example .env
 ```bash
 corepack pnpm install
 ```
+
+Expected result:
+
+- No ignored build-scripts warning on a fresh install
+- If an older M2 checkout still shows the previous warning after the toolchain upgrade, run `corepack pnpm rebuild` once and rerun `corepack pnpm install`
 
 3. Start PostgreSQL.
 
@@ -142,6 +147,9 @@ Playwright starts its own Next.js dev server on port `3100`.
 ## CI
 
 GitHub Actions runs the same serial validation path in `.github/workflows/ci.yml`.
+
+- Triggers: `main`, `pull_request`, and `codex/**` branch pushes
+- Observed M2 closeout run: [run `22938471401`](https://github.com/cvren/ops-tracker/actions/runs/22938471401) on branch `codex/m2-closeout` finished with `success`
 
 ## API surface
 
