@@ -2,6 +2,7 @@ import {
   ActivityEventType,
   BlockedCategory,
   ProjectStatus,
+  RecurringCadence,
   TaskPriority,
   TaskStatus,
   WorkspaceRole
@@ -13,6 +14,7 @@ import {
 } from "../src/lib/activity";
 import { hashPassword } from "../src/lib/auth";
 import { getEnv } from "../src/lib/env";
+import { buildTaskFromTemplateValues } from "../src/lib/manager-mutations";
 import { prisma } from "../src/lib/prisma";
 
 function atNoonOffset(daysFromToday: number) {
@@ -129,27 +131,29 @@ async function main() {
     });
   }
 
-  const seededCodes = ["OPS-ALPHA", "OPS-BETA", "OPS-EMPTY"];
-  const existingProjects = await prisma.project.findMany({
+  await prisma.recurringSchedule.deleteMany({
     where: {
-      code: {
-        in: seededCodes
-      }
-    },
-    select: {
-      id: true
+      workspaceId: workspace.id
     }
   });
 
-  if (existingProjects.length > 0) {
-    await prisma.project.deleteMany({
-      where: {
-        id: {
-          in: existingProjects.map((project) => project.id)
-        }
-      }
-    });
-  }
+  await prisma.taskTemplate.deleteMany({
+    where: {
+      workspaceId: workspace.id
+    }
+  });
+
+  await prisma.activityEvent.deleteMany({
+    where: {
+      workspaceId: workspace.id
+    }
+  });
+
+  await prisma.project.deleteMany({
+    where: {
+      workspaceId: workspace.id
+    }
+  });
 
   await prisma.$transaction(async (tx) => {
     const alpha = await tx.project.create({
@@ -191,6 +195,69 @@ async function main() {
       }
     });
 
+    const weeklySweepTemplate = await tx.taskTemplate.create({
+      data: {
+        workspaceId: workspace.id,
+        name: "Weekly review sweep",
+        title: "Run weekly review sweep",
+        description:
+          "Create a repeatable review-sweep task with a clear owner, reviewer, and due offset so the manager does not rebuild the same weekly work by hand.",
+        defaultAssigneeId: operator.id,
+        defaultReviewerId: reviewer.id,
+        defaultDueOffsetDays: 14,
+        defaultPriority: TaskPriority.MEDIUM,
+        defaultStatus: TaskStatus.BACKLOG,
+        createdById: admin.id,
+        updatedById: admin.id
+      }
+    });
+
+    const escalationDigestTemplate = await tx.taskTemplate.create({
+      data: {
+        workspaceId: workspace.id,
+        name: "Store escalation digest",
+        title: "Publish store escalation digest",
+        description:
+          "Package the store escalation notes into a repeatable digest task with the owner, reviewer, and due offset already set.",
+        defaultAssigneeId: admin.id,
+        defaultReviewerId: reviewer.id,
+        defaultDueOffsetDays: 21,
+        defaultPriority: TaskPriority.MEDIUM,
+        defaultStatus: TaskStatus.BACKLOG,
+        createdById: admin.id,
+        updatedById: admin.id
+      }
+    });
+
+    const generateNowSchedule = await tx.recurringSchedule.create({
+      data: {
+        workspaceId: workspace.id,
+        projectId: beta.id,
+        templateId: escalationDigestTemplate.id,
+        cadence: RecurringCadence.DAILY,
+        interval: 1,
+        nextRunAt: atNoonOffset(1),
+        isActive: true,
+        createdById: admin.id,
+        updatedById: admin.id
+      }
+    });
+
+    const pausedSweepSchedule = await tx.recurringSchedule.create({
+      data: {
+        workspaceId: workspace.id,
+        projectId: alpha.id,
+        templateId: weeklySweepTemplate.id,
+        cadence: RecurringCadence.WEEKLY,
+        interval: 1,
+        nextRunAt: atNoonOffset(5),
+        lastRunAt: hoursAgo(72),
+        isActive: false,
+        createdById: admin.id,
+        updatedById: admin.id
+      }
+    });
+
     const inProgressTask = await tx.task.create({
       data: {
         projectId: alpha.id,
@@ -223,6 +290,25 @@ async function main() {
         startedAt: hoursAgo(20),
         dueDate: atNoonOffset(0),
         reviewRequestedAt: hoursAgo(2),
+        reviewRequestedById: operator.id
+      }
+    });
+
+    const staleReviewTask = await tx.task.create({
+      data: {
+        projectId: beta.id,
+        title: "Review partner escalation rollback brief",
+        description:
+          "The reviewer queue has been waiting too long on this rollback brief. It exists to show stale review risk on the manager console.",
+        status: TaskStatus.NEEDS_REVIEW,
+        priority: TaskPriority.HIGH,
+        assigneeId: operator.id,
+        reviewerId: reviewer.id,
+        createdById: admin.id,
+        updatedById: operator.id,
+        startedAt: hoursAgo(80),
+        dueDate: atNoonOffset(2),
+        reviewRequestedAt: hoursAgo(72),
         reviewRequestedById: operator.id
       }
     });
@@ -268,6 +354,43 @@ async function main() {
       }
     });
 
+    const secondBlockedTask = await tx.task.create({
+      data: {
+        projectId: alpha.id,
+        title: "Wait on warehouse firewall approval",
+        description:
+          "A second blocked task so the manager can bulk unblock a real queue and watch the blocked count fall on the dashboard.",
+        status: TaskStatus.BLOCKED,
+        priority: TaskPriority.HIGH,
+        assigneeId: operator.id,
+        reviewerId: reviewer.id,
+        createdById: admin.id,
+        updatedById: admin.id,
+        startedAt: hoursAgo(36),
+        dueDate: atNoonOffset(-2),
+        blockedReason:
+          "Infra approval is still pending for the warehouse firewall change.",
+        blockedCategory: BlockedCategory.EXTERNAL
+      }
+    });
+
+    const overdueTask = await tx.task.create({
+      data: {
+        projectId: alpha.id,
+        title: "Close scanner parity gap for west dock",
+        description:
+          "An overdue delivery used to demonstrate the manager bulk due-date flow.",
+        status: TaskStatus.IN_PROGRESS,
+        priority: TaskPriority.HIGH,
+        assigneeId: operator.id,
+        reviewerId: reviewer.id,
+        createdById: admin.id,
+        updatedById: operator.id,
+        startedAt: hoursAgo(55),
+        dueDate: atNoonOffset(-3)
+      }
+    });
+
     const unassignedTask = await tx.task.create({
       data: {
         projectId: beta.id,
@@ -281,6 +404,80 @@ async function main() {
         createdById: admin.id,
         updatedById: admin.id,
         dueDate: atNoonOffset(3)
+      }
+    });
+
+    const secondUnassignedTask = await tx.task.create({
+      data: {
+        projectId: alpha.id,
+        title: "Assign nightly variance audit owner",
+        description:
+          "A second unassigned task so the manager can bulk assign a queue from the console demo.",
+        status: TaskStatus.BACKLOG,
+        priority: TaskPriority.HIGH,
+        assigneeId: null,
+        reviewerId: reviewer.id,
+        createdById: admin.id,
+        updatedById: admin.id,
+        dueDate: atNoonOffset(2)
+      }
+    });
+
+    const operatorLoadTask = await tx.task.create({
+      data: {
+        projectId: alpha.id,
+        title: "Compile warehouse launch checkpoint pack",
+        description:
+          "An extra operator-owned task to make the workload table clearly skewed for the M3 dashboard demo.",
+        status: TaskStatus.IN_PROGRESS,
+        priority: TaskPriority.MEDIUM,
+        assigneeId: operator.id,
+        reviewerId: null,
+        createdById: admin.id,
+        updatedById: operator.id,
+        startedAt: hoursAgo(10),
+        dueDate: atNoonOffset(4)
+      }
+    });
+
+    const adminTask = await tx.task.create({
+      data: {
+        projectId: beta.id,
+        title: "Prepare launch recovery standup brief",
+        description:
+          "A small manager-owned task that shows workload distribution is not completely one-sided.",
+        status: TaskStatus.IN_PROGRESS,
+        priority: TaskPriority.LOW,
+        assigneeId: admin.id,
+        reviewerId: null,
+        createdById: admin.id,
+        updatedById: admin.id,
+        startedAt: hoursAgo(6),
+        dueDate: atNoonOffset(5)
+      }
+    });
+
+    const generatedTemplateTask = await tx.task.create({
+      data: {
+        projectId: beta.id,
+        ...buildTaskFromTemplateValues(
+          escalationDigestTemplate,
+          new Date("2026-03-11T00:00:00.000Z")
+        ),
+        createdById: admin.id,
+        updatedById: admin.id
+      }
+    });
+
+    const recurringGeneratedTask = await tx.task.create({
+      data: {
+        projectId: alpha.id,
+        ...buildTaskFromTemplateValues(
+          weeklySweepTemplate,
+          hoursAgo(72)
+        ),
+        createdById: admin.id,
+        updatedById: admin.id
       }
     });
 
@@ -350,12 +547,56 @@ async function main() {
       payload: { summary: "created project OPS-BETA" }
     });
 
+    for (const template of [weeklySweepTemplate, escalationDigestTemplate]) {
+      await createActivityEvent(tx, {
+        workspaceId: workspace.id,
+        actorId: admin.id,
+        type: ActivityEventType.TASK_TEMPLATE_CREATED,
+        payload: {
+          templateId: template.id,
+          summary: `created template ${template.name}`
+        }
+      });
+    }
+
+    await createActivityEvent(tx, {
+      workspaceId: workspace.id,
+      projectId: generateNowSchedule.projectId,
+      actorId: admin.id,
+      type: ActivityEventType.RECURRING_SCHEDULE_CREATED,
+      payload: {
+        scheduleId: generateNowSchedule.id,
+        templateId: escalationDigestTemplate.id,
+        summary: `created recurring schedule for ${escalationDigestTemplate.name}`
+      }
+    });
+
+    await createActivityEvent(tx, {
+      workspaceId: workspace.id,
+      projectId: pausedSweepSchedule.projectId,
+      actorId: admin.id,
+      type: ActivityEventType.RECURRING_SCHEDULE_CREATED,
+      payload: {
+        scheduleId: pausedSweepSchedule.id,
+        templateId: weeklySweepTemplate.id,
+        summary: `created recurring schedule for ${weeklySweepTemplate.name}`
+      }
+    });
+
     for (const task of [
       inProgressTask,
       needsReviewTask,
+      staleReviewTask,
       changesRequestedTask,
       blockedTask,
+      secondBlockedTask,
+      overdueTask,
       unassignedTask,
+      secondUnassignedTask,
+      operatorLoadTask,
+      adminTask,
+      generatedTemplateTask,
+      recurringGeneratedTask,
       doneTask
     ]) {
       await createActivityEvent(tx, {
@@ -406,6 +647,18 @@ async function main() {
       notificationUserIds: [reviewer.id]
     });
 
+    await createActivityEvent(tx, {
+      workspaceId: workspace.id,
+      projectId: staleReviewTask.projectId,
+      taskId: staleReviewTask.id,
+      actorId: operator.id,
+      type: ActivityEventType.TASK_REVIEW_REQUESTED,
+      payload: {
+        summary: `requested review from ${reviewer.name}`
+      },
+      notificationUserIds: [reviewer.id]
+    });
+
     const changesRequestedEvent = await createActivityEvent(tx, {
       workspaceId: workspace.id,
       projectId: changesRequestedTask.projectId,
@@ -432,12 +685,72 @@ async function main() {
 
     await createActivityEvent(tx, {
       workspaceId: workspace.id,
+      projectId: secondBlockedTask.projectId,
+      taskId: secondBlockedTask.id,
+      actorId: admin.id,
+      type: ActivityEventType.TASK_BLOCKED,
+      payload: {
+        summary: `blocked the task: ${secondBlockedTask.blockedReason}`
+      },
+      notificationUserIds: [reviewer.id, operator.id]
+    });
+
+    await createActivityEvent(tx, {
+      workspaceId: workspace.id,
       projectId: doneTask.projectId,
       taskId: doneTask.id,
       actorId: reviewer.id,
       type: ActivityEventType.TASK_REVIEW_APPROVED,
       payload: {
         summary: "approved the task"
+      }
+    });
+
+    await createActivityEvent(tx, {
+      workspaceId: workspace.id,
+      projectId: generatedTemplateTask.projectId,
+      taskId: generatedTemplateTask.id,
+      actorId: admin.id,
+      type: ActivityEventType.TASK_CREATED_FROM_TEMPLATE,
+      payload: {
+        templateId: escalationDigestTemplate.id,
+        summary: `created "${generatedTemplateTask.title}" from template ${escalationDigestTemplate.name}`
+      }
+    });
+
+    const recurringExecution = await tx.recurringExecution.create({
+      data: {
+        scheduleId: pausedSweepSchedule.id,
+        scheduledFor: atNoonOffset(-2),
+        executedAt: hoursAgo(72),
+        createdTaskId: recurringGeneratedTask.id
+      }
+    });
+
+    await createActivityEvent(tx, {
+      workspaceId: workspace.id,
+      projectId: recurringGeneratedTask.projectId,
+      taskId: recurringGeneratedTask.id,
+      actorId: admin.id,
+      type: ActivityEventType.TASK_CREATED_FROM_TEMPLATE,
+      payload: {
+        templateId: weeklySweepTemplate.id,
+        scheduleId: pausedSweepSchedule.id,
+        summary: `created "${recurringGeneratedTask.title}" from template ${weeklySweepTemplate.name}`
+      }
+    });
+
+    await createActivityEvent(tx, {
+      workspaceId: workspace.id,
+      projectId: recurringGeneratedTask.projectId,
+      taskId: recurringGeneratedTask.id,
+      actorId: admin.id,
+      type: ActivityEventType.RECURRING_SCHEDULE_EXECUTED,
+      payload: {
+        scheduleId: pausedSweepSchedule.id,
+        templateId: weeklySweepTemplate.id,
+        executionId: recurringExecution.id,
+        summary: `generated recurring task from ${weeklySweepTemplate.name}`
       }
     });
 
@@ -528,9 +841,39 @@ async function main() {
         readAt: hoursAgo(1)
       }
     });
+
+    await tx.$executeRaw`
+      UPDATE "Task"
+      SET "updatedAt" = ${hoursAgo(96)}
+      WHERE "id" = ${blockedTask.id}
+    `;
+
+    await tx.$executeRaw`
+      UPDATE "Task"
+      SET "updatedAt" = ${hoursAgo(88)}
+      WHERE "id" = ${secondBlockedTask.id}
+    `;
+
+    await tx.$executeRaw`
+      UPDATE "Task"
+      SET "updatedAt" = ${hoursAgo(90)}
+      WHERE "id" = ${staleReviewTask.id}
+    `;
+
+    await tx.$executeRaw`
+      UPDATE "Task"
+      SET "updatedAt" = ${hoursAgo(72)}
+      WHERE "id" = ${secondUnassignedTask.id}
+    `;
+
+    await tx.$executeRaw`
+      UPDATE "Task"
+      SET "updatedAt" = ${hoursAgo(84)}
+      WHERE "id" = ${overdueTask.id}
+    `;
   });
 
-  console.log("Seeded ops-tracker v0.2.0 M2 collaboration demo data.");
+  console.log("Seeded ops-tracker v0.3.0 M3.3 repeat-work demo data.");
   console.log(`Admin login: ${env.OPS_TRACKER_DEMO_EMAIL}`);
   console.log(`Operator login: ${env.OPS_TRACKER_SECONDARY_EMAIL}`);
   console.log(`Reviewer login: ${env.OPS_TRACKER_TERTIARY_EMAIL}`);

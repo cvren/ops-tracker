@@ -1,10 +1,19 @@
 import { describe, expect, it } from "vitest";
 
-import { getDueDateBoundary, getTaskViewWhere, parseTaskView } from "@/lib/task-views";
+import {
+  getDueDateBoundary,
+  getHighRiskWhere,
+  getTaskViewOrderBy,
+  getTaskViewWhere,
+  isManagerTaskView,
+  parseTaskView
+} from "@/lib/task-views";
 
 describe("task views", () => {
   it("parses known views only", () => {
     expect(parseTaskView("my-tasks")).toBe("my-tasks");
+    expect(parseTaskView("review-queue")).toBe("review-queue");
+    expect(parseTaskView("workload")).toBe("workload");
     expect(parseTaskView("unknown")).toBeUndefined();
   });
 
@@ -26,7 +35,7 @@ describe("task views", () => {
     });
   });
 
-  it("builds overdue and unassigned filters", () => {
+  it("builds overdue, unassigned, and manager filters", () => {
     const overdue = getTaskViewWhere({
       view: "overdue",
       userId: "user-1",
@@ -44,5 +53,51 @@ describe("task views", () => {
       assigneeId: null,
       status: { not: "DONE" }
     });
+
+    expect(
+      getTaskViewWhere({ view: "review-queue", userId: "user-1" })
+    ).toMatchObject({
+      status: "NEEDS_REVIEW"
+    });
+
+    expect(
+      getTaskViewWhere({
+        view: "due-this-week",
+        userId: "user-1",
+        now: new Date("2026-03-11T08:00:00.000Z")
+      })
+    ).toMatchObject({
+      dueDate: {
+        gte: getDueDateBoundary(new Date("2026-03-11T08:00:00.000Z"))
+      },
+      status: { not: "DONE" }
+    });
+  });
+
+  it("builds the high-risk queue filter", () => {
+    const highRisk = getHighRiskWhere(new Date("2026-03-11T08:00:00.000Z"));
+
+    expect(highRisk).toMatchObject({
+      status: { not: "DONE" }
+    });
+    expect(highRisk.OR).toEqual(
+      expect.arrayContaining([{ status: "BLOCKED" }, { assigneeId: null }])
+    );
+  });
+
+  it("marks manager-only views and orders drill-down queues predictably", () => {
+    expect(isManagerTaskView("review-queue")).toBe(true);
+    expect(isManagerTaskView("workload")).toBe(true);
+    expect(isManagerTaskView("my-tasks")).toBe(false);
+
+    expect(getTaskViewOrderBy("blocked-aging")).toEqual([
+      { updatedAt: "asc" },
+      { dueDate: "asc" }
+    ]);
+    expect(getTaskViewOrderBy("due-this-week")).toEqual([
+      { dueDate: "asc" },
+      { priority: "desc" },
+      { updatedAt: "asc" }
+    ]);
   });
 });

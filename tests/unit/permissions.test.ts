@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  canManageManagerConsole,
   canManageMemberships,
   canManageTaskLifecycle,
   canMutateWorkspace,
@@ -17,6 +18,8 @@ describe("workspace permissions", () => {
   it("limits membership changes to admins", () => {
     expect(canManageMemberships("ADMIN")).toBe(true);
     expect(canManageMemberships("MEMBER")).toBe(false);
+    expect(canManageManagerConsole("ADMIN")).toBe(true);
+    expect(canManageManagerConsole("MEMBER")).toBe(false);
   });
 
   it("allows assignees and admins to move the lifecycle", () => {

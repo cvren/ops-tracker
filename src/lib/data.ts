@@ -8,7 +8,7 @@ import {
 import { getActivitySummary } from "@/lib/activity";
 import { prisma } from "@/lib/prisma";
 import { type TaskView } from "@/lib/constants";
-import { getTaskViewWhere } from "@/lib/task-views";
+import { getTaskViewOrderBy, getTaskViewWhere } from "@/lib/task-views";
 import { getCurrentWorkspaceContext } from "@/lib/workspace";
 
 type ProjectFilters = {
@@ -22,6 +22,8 @@ type TaskFilters = {
   priority?: TaskPriority;
   projectId?: string;
   view?: TaskView;
+  assigneeId?: string;
+  reviewerId?: string;
 };
 
 type WorkspaceScopedTaskWhereInput = Prisma.TaskWhereInput;
@@ -366,6 +368,8 @@ export async function listTasks(filters: TaskFilters = {}) {
         workspaceId: context.workspace.id
       },
       projectId: filters.projectId,
+      assigneeId: filters.assigneeId,
+      reviewerId: filters.reviewerId,
       status: filters.status,
       priority: filters.priority,
       ...getTaskViewWhere({
@@ -374,7 +378,7 @@ export async function listTasks(filters: TaskFilters = {}) {
       }),
       ...(query ? getTaskSearchWhere(query) : {})
     },
-    orderBy: [{ updatedAt: "desc" }],
+    orderBy: getTaskViewOrderBy(filters.view),
     include: {
       project: {
         select: {

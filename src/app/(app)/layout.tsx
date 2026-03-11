@@ -27,7 +27,10 @@ export default async function AppLayout({
                 </h1>
                 <p className="text-sm text-ink/65">{workspace.description}</p>
               </div>
-              <NavLinks unreadCount={unreadNotifications} />
+              <NavLinks
+                role={membership.role}
+                unreadCount={unreadNotifications}
+              />
             </div>
           </div>
           <div className="flex flex-wrap items-center justify-end gap-3">

@@ -3,25 +3,45 @@
 ## Product
 
 - Project name: `ops-tracker`
-- Version target: `v0.2.0`
-- Implementation target: `Milestone 2: Comment + ActivityEvent + Notification Inbox`
+- Version target: `v0.3.0`
+- Current implementation target: `M3 final reconciliation + release-ready closeout`
 - Package name prefix: `@ops-tracker/*`
 - Docker Compose project name: `ops-tracker`
 - Environment variable prefix: `OPS_TRACKER_`
 
-## Milestone goal
+## Release-ready objective
 
-`ops-tracker` must keep the task context inside the product so handoff, review return, and mentions do not get lost in chat or memory.
+`ops-tracker` `v0.3.0` must be fixed to the current branch-head truth without adding new scope.
 
-Milestone 2 is complete only when the following are true:
+Release-ready closeout is complete only when the following are true:
 
-1. Comments are created and rendered from real task data.
-2. Mentions are stored durably and drive activity and notifications.
-3. Activity timeline shows who changed what and when.
-4. Inbox shows unread and read notifications with direct links back to the task.
-5. M1 ownership, review, and saved-view flows still work.
+1. The shipped `v0.3.0` scope is stable and matches the repository implementation.
+2. Local validation truth is measured and recorded without polluting the normal developer workflow with sandbox-only workarounds.
+3. `README.md`, `PLAN.md`, `STATUS.md`, `RELEASE_NOTES_v0.3.0.md`, and `docs/handoffs/v0.3.0-to-m4.md` all describe the same shipped boundary.
+4. Current branch-head GitHub-hosted CI is observed as success, or the exact blocker is recorded.
+5. Exact next human steps for PR, merge, tag, and release are clear.
 
-## Core entities in M2
+## Shipped scope in v0.3.0
+
+- `v0.2.0` collaboration foundation:
+  - workspace and membership boundary
+  - task owner, reviewer, due date, blocked state, and review lifecycle
+  - comments, mentions, activity timeline, and inbox
+- `M3.1` manager dashboard:
+  - overdue, review, blocked, unassigned, due-soon, aging, workload, and bottleneck views
+  - drill-down routes through `/tasks`
+- `M3.2` manager bulk actions:
+  - admin-only task multi-select on manager queues
+  - all-or-nothing bulk owner, reviewer, due date, status, blocked state, and priority updates
+  - `TASK_BULK_UPDATED` activity trace
+- `M3.3` repeat-work controls:
+  - admin-only task templates
+  - admin-only recurring schedules
+  - manual `Generate now`
+  - duplicate-resistant recurring execution per schedule run slot
+  - template and recurring activity trace
+
+## Core entities in v0.3.0
 
 - User
 - Workspace
@@ -33,117 +53,65 @@ Milestone 2 is complete only when the following are true:
 - ActivityEvent
 - Notification
 - Session
+- TaskTemplate
+- RecurringSchedule
+- RecurringExecution
 
-## M2 required scope
+## Non-goals for this closeout
 
-- Keep the M1 workspace and review foundation intact
-- Task comments:
-  - `taskId`
-  - `authorId`
-  - `body`
-  - `createdAt`
-  - `updatedAt`
-- Structured mentions through workspace-member selection
-- `ActivityEvent` event coverage for:
-  - task created
-  - task updated
-  - assignee changed
-  - reviewer changed
-  - due date changed
-  - status changed
-  - blocked
-  - unblocked
-  - review requested
-  - changes requested
-  - review approved / done
-  - comment created
-  - mention created
-- Task detail UI:
-  - comment composer
-  - comment list
-  - activity timeline
-- Inbox UI:
-  - unread/read state
-  - newest first
-  - nav badge
-  - direct link to the relevant task
-- Notification fan-out minimum:
-  - assignee set
-  - reviewer set
-  - review request
-  - changes requested
-  - mention
-  - comment on a task the user is involved in
-- Self-notification suppression
-- Notification dedupe for the same user and same event
-- Seed data and Playwright for the comment/timeline/inbox happy path
-
-## Deferred to M3
-
-- Email notifications
-- Slack notifications
-- Real-time updates
-- Attachment support
-- Rich text editor
-- Comment edit/delete/threading
-- Advanced notification preferences
-- Bulk notification actions as a milestone goal
-- Analytics, SLA, escalation, webhook, and automation features
-
-Repository note:
-
-- Existing foundations for later milestones may remain in the repository, but M2 completion is limited to the scope above.
+- No new product scope for M4
+- No background cron, queue, or worker system
+- No analytics or reporting expansion
+- No member-safe manager permission redesign
+- No notification fan-out expansion
+- No project-wide refactor
 
 ## Technical constraints
 
 - Keep the existing Next.js, TypeScript, Prisma, PostgreSQL, pnpm, Vitest, Playwright, Tailwind, Docker Compose, and GitHub Actions stack
-- Keep the existing auth, session, membership, and review guard intact
-- Use structured mentions instead of brittle free-text parsing
-- Do not do project-wide refactors
-- Keep `v0.1.0` core flow and M1 flow working
+- Keep `Membership.role` as the effective authorization boundary
+- Keep the product single-workspace in `v0.3.0`
+- Keep manager-console mutations admin-only in `v0.3.0`
+- Keep recurring execution manual in `v0.3.0`
+- Keep `test:e2e` and `build` serial in the same worktree because both touch `.next`
 
-## Deliverables for M2
+## Deliverables for release-ready closeout
 
-- Working source code for comments, mentions, activity timeline, and inbox
-- Prisma schema and SQL migration updates
-- Seed data for the M2 demo
-- Updated README and environment template
-- Updated `docs/handoffs/v0.1.0-to-v0.2.0.md`, `SPEC.md`, `PLAN.md`, `STATUS.md`, and release notes
-- Unit and Playwright coverage for the M2 flow
+- Reconciled docs that match the current repository truth
+- Release-ready `RELEASE_NOTES_v0.3.0.md`
+- Updated `docs/handoffs/v0.3.0-to-m4.md`
+- Exact validation results for local commands
+- Observed hosted CI result for the pushed branch head, or an exact blocker
+- Exact next human steps for PR, merge, tag, and release
 
-## M2 done when
+## Done when
 
-- Task detail stores and displays comments from real data
-- Mentions are stored and drive notification fan-out
-- Activity timeline shows key task and review events
-- Inbox supports unread/read and shows unread count in nav
-- Self-notification suppression and dedupe work
-- M1 ownership, review, and saved views still work
-- Seed data supports the intended five-minute M2 demo
-- `STATUS.md` lists M3 deferred items
+- Stale M3 milestone wording and stale numbers are removed from repo docs
+- `package.json` stays on version `0.3.0`
 - The following commands pass:
-  - `pnpm install`
+  - `corepack pnpm install`
   - `docker compose up -d`
-  - `pnpm exec prisma generate`
-  - `pnpm exec prisma migrate deploy || pnpm exec prisma migrate dev`
-  - `pnpm db:seed`
-  - `pnpm lint`
-  - `pnpm typecheck`
-  - `pnpm test`
-  - `pnpm test:e2e`
-  - `pnpm build`
+  - `corepack pnpm exec prisma generate`
+  - `corepack pnpm exec prisma migrate deploy || corepack pnpm exec prisma migrate dev`
+  - `corepack pnpm db:seed`
+  - `corepack pnpm lint`
+  - `corepack pnpm typecheck`
+  - `corepack pnpm test`
+  - `corepack pnpm test:e2e`
+  - `corepack pnpm build`
+- Current branch-head GitHub-hosted CI is observed as success, or the exact blocker is recorded
 
 ## Validation commands
 
 ```bash
-pnpm install
+corepack pnpm install
 docker compose up -d
-pnpm exec prisma generate
-pnpm exec prisma migrate deploy || pnpm exec prisma migrate dev
-pnpm db:seed
-pnpm lint
-pnpm typecheck
-pnpm test
-pnpm test:e2e
-pnpm build
+corepack pnpm exec prisma generate
+corepack pnpm exec prisma migrate deploy || corepack pnpm exec prisma migrate dev
+corepack pnpm db:seed
+corepack pnpm lint
+corepack pnpm typecheck
+corepack pnpm test
+corepack pnpm test:e2e
+corepack pnpm build
 ```

@@ -2,9 +2,13 @@ import { describe, expect, it } from "vitest";
 
 import {
   normalizeDueDate,
+  parseBulkTaskUpdateFormData,
   parseCommentFormData,
+  parseCreateTaskFromTemplateFormData,
   parseProjectFormData,
+  parseRecurringScheduleFormData,
   parseTaskFormData,
+  parseTaskTemplateFormData,
   taskStatusUpdateSchema
 } from "@/lib/validation";
 
@@ -145,6 +149,136 @@ describe("comment validation", () => {
     );
 
     expect(parsed.success).toBe(true);
+  });
+});
+
+describe("bulk task validation", () => {
+  it("dedupes repeated task ids in bulk form data", () => {
+    const parsed = parseBulkTaskUpdateFormData(
+      createFormData({
+        taskIds: [
+          "cm8opsdemo0000000000000101",
+          "cm8opsdemo0000000000000102",
+          "cm8opsdemo0000000000000101"
+        ],
+        assigneeId: "cm8opsdemo0000000000000001",
+        reviewerId: "",
+        dueDate: "",
+        status: "",
+        priority: "",
+        blockedState: "keep",
+        blockedReason: "",
+        blockedCategory: ""
+      })
+    );
+
+    expect(parsed.success).toBe(true);
+
+    if (parsed.success) {
+      expect(parsed.data.taskIds).toEqual([
+        "cm8opsdemo0000000000000101",
+        "cm8opsdemo0000000000000102"
+      ]);
+    }
+  });
+
+  it("requires a blocked reason for bulk blocked updates", () => {
+    const parsed = parseBulkTaskUpdateFormData(
+      createFormData({
+        taskIds: ["cm8opsdemo0000000000000101"],
+        assigneeId: "",
+        reviewerId: "",
+        dueDate: "",
+        status: "",
+        priority: "",
+        blockedState: "block",
+        blockedReason: "",
+        blockedCategory: "DEPENDENCY"
+      })
+    );
+
+    expect(parsed.success).toBe(false);
+  });
+});
+
+describe("task template validation", () => {
+  it("accepts a valid template payload", () => {
+    const parsed = parseTaskTemplateFormData(
+      createFormData({
+        name: "Weekly review sweep",
+        title: "Run weekly review sweep",
+        description: "Sweep the review queue and capture the next handoff risk.",
+        defaultAssigneeId: "cm8opsdemo0000000000000001",
+        defaultReviewerId: "cm8opsdemo0000000000000002",
+        defaultDueOffsetDays: "2",
+        defaultPriority: "HIGH",
+        defaultStatus: "BACKLOG"
+      })
+    );
+
+    expect(parsed.success).toBe(true);
+  });
+
+  it("rejects a template that collides owner and reviewer", () => {
+    const parsed = parseTaskTemplateFormData(
+      createFormData({
+        name: "Weekly review sweep",
+        title: "Run weekly review sweep",
+        description: "Sweep the review queue and capture the next handoff risk.",
+        defaultAssigneeId: "cm8opsdemo0000000000000001",
+        defaultReviewerId: "cm8opsdemo0000000000000001",
+        defaultDueOffsetDays: "2",
+        defaultPriority: "HIGH",
+        defaultStatus: "BACKLOG"
+      })
+    );
+
+    expect(parsed.success).toBe(false);
+  });
+});
+
+describe("template generation validation", () => {
+  it("accepts a valid project and template pair", () => {
+    const parsed = parseCreateTaskFromTemplateFormData(
+      createFormData({
+        templateId: "cm8opsdemo0000000000000101",
+        projectId: "cm8opsdemo0000000000000102"
+      })
+    );
+
+    expect(parsed.success).toBe(true);
+  });
+});
+
+describe("recurring schedule validation", () => {
+  it("accepts a valid recurring schedule payload", () => {
+    const parsed = parseRecurringScheduleFormData(
+      createFormData({
+        templateId: "cm8opsdemo0000000000000101",
+        projectId: "cm8opsdemo0000000000000102",
+        cadence: "WEEKLY",
+        interval: "2",
+        nextRunAt: "2026-03-20",
+        isActive: "on"
+      })
+    );
+
+    expect(parsed.success).toBe(true);
+  });
+
+  it("rejects a recurring schedule with an invalid interval", () => {
+    const parsed = parseRecurringScheduleFormData(
+      createFormData({
+        templateId: "cm8opsdemo0000000000000101",
+        projectId: "cm8opsdemo0000000000000102",
+        cadence: "WEEKLY",
+        interval: "0",
+        nextRunAt: "2026-03-20",
+        isActive: "on"
+      })
+    );
+
+    expect(parsed.success).toBe(false);
   });
 });
 

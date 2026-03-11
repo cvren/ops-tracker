@@ -21,7 +21,7 @@ async function signOut(page: Page) {
   await expect(page).toHaveURL(/\/login$/);
 }
 
-test("team can execute the M2 comment and inbox flow end-to-end", async ({
+test("team can execute the v0.2.0 collaboration flow end-to-end", async ({
   page
 }) => {
   test.setTimeout(120000);
@@ -43,16 +43,18 @@ test("team can execute the M2 comment and inbox flow end-to-end", async ({
 
   await expect(
     page.getByRole("heading", {
-      name: "See what needs attention before the handoff slips."
+      name: "Spot the risk, then clear it before the morning slips."
     })
   ).toBeVisible({ timeout: 10000 });
-  await expect(page.getByRole("link", { name: /^My Tasks \d+/ })).toBeVisible();
   await expect(
-    page.getByRole("link", { name: /^Needs Review \d+/ })
+    page.getByRole("link", { name: /^Overdue \d+/ })
   ).toBeVisible();
-  await expect(page.getByRole("link", { name: /^Overdue \d+/ })).toBeVisible();
   await expect(
-    page.getByRole("link", { name: /^Unassigned \d+/ })
+    page.getByRole("link", { name: /^Review Queue \d+/ })
+  ).toBeVisible();
+  await expect(page.getByRole("link", { name: /^Blocked \d+/ })).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: /^Due Today \d+/ })
   ).toBeVisible();
 
   await page.goto("/workspace");
@@ -232,5 +234,238 @@ test("team can execute the M2 comment and inbox flow end-to-end", async ({
   await page.goto("/tasks?view=unassigned");
   await expect(
     page.getByText("Backfill owner for store escalation sheet")
+  ).toBeVisible();
+});
+
+test("admin can clear risky queues with the M3.2 bulk manager console flow", async ({
+  page
+}) => {
+  test.setTimeout(120000);
+
+  const pushedDueDate = new Date(Date.now() + 1000 * 60 * 60 * 24 * 6)
+    .toISOString()
+    .slice(0, 10);
+
+  await signIn(page, adminEmail);
+
+  await expect(
+    page.getByRole("heading", {
+      name: "Spot the risk, then clear it before the morning slips."
+    })
+  ).toBeVisible({ timeout: 10000 });
+  await expect(page.getByRole("link", { name: /^Overdue 3/ })).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: /^Review Queue 2/ })
+  ).toBeVisible();
+  await expect(page.getByRole("link", { name: /^Unassigned 2/ })).toBeVisible();
+  await expect(page.getByRole("link", { name: /^Blocked 2/ })).toBeVisible();
+
+  await page.getByRole("link", { name: /^Unassigned 2/ }).click();
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Unassigned" })
+  ).toBeVisible();
+  await expect(page).toHaveURL(/\/tasks\?view=unassigned/);
+  await page
+    .getByLabel("Select Backfill owner for store escalation sheet")
+    .check();
+  await page
+    .getByLabel("Select Assign nightly variance audit owner")
+    .check();
+  await expect(page.getByText("2 selected")).toBeVisible();
+  await page
+    .getByLabel("Set owner")
+    .selectOption({ label: "Ken Operator · operator@ops-tracker.local" });
+  await page.getByRole("button", { name: "Apply bulk changes" }).click();
+  await expect(page.getByText("No matching tasks")).toBeVisible();
+
+  await page.goto("/dashboard");
+  await expect(page.getByRole("link", { name: /^Unassigned 0/ })).toBeVisible();
+
+  await page.getByRole("link", { name: /^Overdue 3/ }).click();
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Overdue" })
+  ).toBeVisible();
+  await expect(page).toHaveURL(/\/tasks\?view=overdue/);
+  await page
+    .getByLabel("Select Resolve carrier API dependency")
+    .check();
+  await page
+    .getByLabel("Select Wait on warehouse firewall approval")
+    .check();
+  await expect(page.getByText("2 selected")).toBeVisible();
+  await page.getByLabel("Set due date").fill(pushedDueDate);
+  await page.getByRole("button", { name: "Apply bulk changes" }).click();
+  await expect(page.getByText("Updated 2 tasks.")).toBeVisible();
+  await expect(page.getByText("Close scanner parity gap for west dock")).toBeVisible();
+  await expect(page.getByText("Resolve carrier API dependency")).toHaveCount(0);
+  await expect(page.getByText("Wait on warehouse firewall approval")).toHaveCount(0);
+
+  await page.goto("/dashboard");
+  await expect(page.getByRole("link", { name: /^Overdue 1/ })).toBeVisible();
+
+  await page.getByRole("link", { name: /^Blocked 2/ }).click();
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Blocked Aging" })
+  ).toBeVisible();
+  await expect(page).toHaveURL(/\/tasks\?view=blocked-aging/);
+  await expect(page.getByText("Resolve carrier API dependency")).toBeVisible();
+  await page.getByRole("button", { name: "Select page" }).click();
+  await expect(page.getByText("2 selected")).toBeVisible();
+  await page.getByLabel("Blocked state").selectOption("unblock");
+  await page.getByRole("button", { name: "Apply bulk changes" }).click();
+  await expect(page.getByText("No matching tasks")).toBeVisible();
+
+  await page.goto("/dashboard");
+  await expect(page.getByRole("link", { name: /^Blocked 0/ })).toBeVisible();
+  await expect(page.getByRole("link", { name: /^Overdue 1/ })).toBeVisible();
+
+  await page.getByRole("link", { name: /^Review Queue 2/ }).click();
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Review Queue" })
+  ).toBeVisible();
+  await expect(page).toHaveURL(/\/tasks\?view=review-queue/);
+  await expect(
+    page.getByText("Review partner escalation rollback brief")
+  ).toBeVisible();
+
+  await page.goto("/dashboard");
+  await page.getByRole("link", { name: "Full workload view" }).click();
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Workload by Member" })
+  ).toBeVisible();
+  await expect(page).toHaveURL(/\/tasks\?view=workload/);
+  await expect(
+    page.locator("p").filter({ hasText: "Ken Operator" }).first()
+  ).toBeVisible();
+  await expect(page.getByText(/Open tasks:/).first()).toBeVisible();
+
+  await page.goto("/dashboard");
+  await page.getByRole("link", { name: "Open high-risk queue" }).click();
+  await expect(
+    page.getByRole("heading", { level: 1, name: "High-Risk Queue" })
+  ).toBeVisible();
+  await expect(page).toHaveURL(/\/tasks\?view=high-risk/);
+  await expect(
+    page.getByText("Review partner escalation rollback brief")
+  ).toBeVisible();
+  await expect(page.getByText("Close scanner parity gap for west dock")).toBeVisible();
+
+  await page.goto("/tasks");
+  await page.getByRole("link", { name: "Resolve carrier API dependency" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Resolve carrier API dependency" })
+  ).toBeVisible();
+  await expect(page.getByText("Bulk updated").first()).toBeVisible();
+  await expect(page.getByText("bulk updated blocked state").first()).toBeVisible();
+});
+
+test("admin can turn repeat work into templates and manual recurring generation", async ({
+  page
+}) => {
+  test.setTimeout(120000);
+
+  const suffix = Date.now().toString().slice(-6);
+  const templateName = `Recurring audit ${suffix}`;
+  const taskTitle = `Prepare recurring audit ${suffix}`;
+  const scheduleDate = new Date().toISOString().slice(0, 10);
+
+  await signIn(page, adminEmail);
+
+  await page.goto("/dashboard");
+  await page.getByRole("link", { name: "Open templates" }).click();
+  await expect(page).toHaveURL(/\/templates$/);
+  await expect(
+    page.getByRole("heading", {
+      name: "Turn repeat work into one-click generation."
+    })
+  ).toBeVisible();
+
+  const createTemplatePanel = page
+    .getByRole("heading", { name: "Capture repeatable work" })
+    .locator("xpath=ancestor::div[contains(@class,'rounded-4xl')][1]");
+
+  await createTemplatePanel.getByLabel("Template name").fill(templateName);
+  await createTemplatePanel.getByLabel("Task title").fill(taskTitle);
+  await createTemplatePanel
+    .getByLabel("Description")
+    .fill("Create the repeatable audit packet without rebuilding the task by hand.");
+  await createTemplatePanel
+    .getByLabel("Default owner")
+    .selectOption({ label: "Ken Operator · operator@ops-tracker.local" });
+  await createTemplatePanel
+    .getByLabel("Default reviewer")
+    .selectOption({ label: "Mika Reviewer · reviewer@ops-tracker.local" });
+  await createTemplatePanel.getByLabel("Due offset days").fill("2");
+  await createTemplatePanel.getByLabel("Default priority").selectOption("HIGH");
+  await createTemplatePanel.getByLabel("Default status").selectOption("BACKLOG");
+  await createTemplatePanel.getByRole("button", { name: "Create template" }).click();
+
+  await expect(page.getByText(`Template ${templateName} created.`)).toBeVisible();
+  const templateCard = page
+    .getByRole("heading", { name: taskTitle })
+    .locator("xpath=ancestor::div[contains(@class,'rounded-4xl')][1]");
+  await expect(templateCard).toContainText(templateName);
+
+  await templateCard
+    .getByLabel("Generate into project")
+    .selectOption({ label: "OPS-ALPHA · Harbor inventory rollout" });
+  await templateCard.getByRole("button", { name: "Generate task" }).click();
+  await expect(
+    templateCard.getByText(`Created task from template ${templateName}.`)
+  ).toBeVisible();
+  await templateCard.getByRole("link", { name: "Open task" }).click();
+
+  await expect(page).toHaveURL(/\/tasks\/.+/);
+  await expect(page.getByRole("heading", { name: taskTitle })).toBeVisible();
+  await expect(page.getByText("Created from template").first()).toBeVisible();
+  await expect(
+    page.getByText(`created "${taskTitle}" from template ${templateName}`).first()
+  ).toBeVisible();
+
+  await page.goto("/templates");
+  const createSchedulePanel = page
+    .getByRole("heading", { name: "Generate repeat work on demand" })
+    .locator("xpath=ancestor::div[contains(@class,'rounded-4xl')][1]");
+
+  await createSchedulePanel
+    .getByLabel("Template")
+    .selectOption({ label: `${templateName} · ${taskTitle}` });
+  await createSchedulePanel
+    .getByLabel("Project")
+    .selectOption({ label: "OPS-BETA · Retail launch recovery" });
+  await createSchedulePanel.getByLabel("Cadence").selectOption("DAILY");
+  await createSchedulePanel.getByLabel("Interval").fill("1");
+  await createSchedulePanel.getByLabel("Next run date").fill(scheduleDate);
+  await createSchedulePanel.getByRole("button", { name: "Create schedule" }).click();
+
+  await expect(page.getByText("Recurring schedule created.")).toBeVisible();
+  const recurringSection = page.locator("section").filter({
+    has: page.getByRole("heading", {
+      name: "Issue the next run only when you decide it is time"
+    })
+  });
+  const scheduleCard = recurringSection
+    .getByText(templateName, { exact: true })
+    .locator("xpath=ancestor::div[contains(@class,'rounded-4xl')][1]");
+  const scheduleButton = scheduleCard.getByRole("button", {
+    name: "Generate now"
+  });
+  await scheduleButton.click();
+  await expect(scheduleCard.getByText(`Generated ${taskTitle}.`)).toBeVisible();
+  await scheduleCard.getByRole("link", { name: "Open task" }).click();
+
+  await expect(page).toHaveURL(/\/tasks\/.+/);
+  await expect(page.getByRole("heading", { name: taskTitle })).toBeVisible();
+  await expect(page.getByText("Recurring schedule executed").first()).toBeVisible();
+  await expect(
+    page.getByText(`generated recurring task from ${templateName}`).first()
+  ).toBeVisible();
+
+  await page.goto("/tasks?view=due-this-week");
+  await expect(page.getByText(taskTitle).first()).toBeVisible();
+
+  await page.goto("/templates");
+  await expect(
+    page.getByText(`generated recurring task from ${templateName}`).first()
   ).toBeVisible();
 });

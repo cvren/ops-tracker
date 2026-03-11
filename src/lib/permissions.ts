@@ -12,6 +12,10 @@ export function canManageMemberships(role: WorkspaceRole) {
   return role === "ADMIN";
 }
 
+export function canManageManagerConsole(role: WorkspaceRole) {
+  return role === "ADMIN";
+}
+
 export function assertCanMutateWorkspace(role: WorkspaceRole) {
   if (!canMutateWorkspace(role)) {
     throw new Error("Viewer access is read-only.");
@@ -21,6 +25,12 @@ export function assertCanMutateWorkspace(role: WorkspaceRole) {
 export function assertCanManageMemberships(role: WorkspaceRole) {
   if (!canManageMemberships(role)) {
     throw new Error("Only workspace admins can manage members.");
+  }
+}
+
+export function assertCanManageManagerConsole(role: WorkspaceRole) {
+  if (!canManageManagerConsole(role)) {
+    throw new Error("Only workspace admins can access the manager console.");
   }
 }
 
