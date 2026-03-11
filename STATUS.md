@@ -26,10 +26,11 @@
 - Admin-only manager-console permissions remain part of the shipped `v0.3.0` boundary and are not widened here
 - Recurring execution remains manual in `v0.3.0`; M4 may build on it, but this closeout does not
 
-## Known issues
+## Environment notes
 
-- `[follow-up]` In this sandbox, `corepack pnpm db:seed` is equivalent to `set -a; source .env; set +a; node --import tsx prisma/seed.ts` because `tsx` IPC pipes are restricted
-- `[follow-up]` `corepack pnpm install` completed successfully from the lockfile but emitted an npm registry metadata warning because outbound network resolution is restricted in this sandbox
+- In this sandbox, `corepack pnpm db:seed` was equivalent to `set -a; source .env; set +a; node --import tsx prisma/seed.ts` because `tsx` IPC pipes are restricted
+- In this sandbox, `corepack pnpm install` emitted an npm registry metadata warning because outbound network resolution is restricted
+- These notes are environment-specific and are not treated as `v0.3.0` repository defects
 
 ## Exact run commands
 
@@ -55,6 +56,14 @@
   - passed
 - GitHub Actions `ci` on `origin/codex/v0.3-m3`
   - observed success for `validate` and `e2e` on the current pushed branch head
+
+## Release handoff
+
+1. Open or refresh the PR from `codex/v0.3-m3` into `main`
+2. Merge the approved PR into `main`
+3. Tag the merge commit: `git switch main && git pull && git tag v0.3.0 <merge-sha> && git push origin v0.3.0`
+4. Publish the GitHub Release from tag `v0.3.0` using `RELEASE_NOTES_v0.3.0.md`
+5. Start M4 only after the merge, tag, and release publish are complete
 
 ## v0.3.0 demo
 
