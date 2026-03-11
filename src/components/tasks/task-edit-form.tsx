@@ -3,9 +3,7 @@
 import {
   type Project,
   type Task,
-  type TaskPriority,
-  type TaskStatus,
-  type User
+  type TaskPriority
 } from "@prisma/client";
 import { useActionState, useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -18,15 +16,33 @@ import { Panel } from "@/components/ui/panel";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  taskPriorityOptions,
-  taskStatusOptions
+  blockedCategoryOptions,
+  taskPriorityOptions
 } from "@/lib/constants";
 import { INITIAL_ACTION_STATE } from "@/lib/forms";
 
 type TaskEditFormProps = {
   projects: Pick<Project, "id" | "code" | "name">[];
-  task: Task;
-  users: Pick<User, "id" | "name" | "email">[];
+  task: Pick<
+    Task,
+    | "id"
+    | "projectId"
+    | "title"
+    | "description"
+    | "status"
+    | "priority"
+    | "assigneeId"
+    | "reviewerId"
+    | "dueDate"
+    | "blockedCategory"
+    | "blockedReason"
+  >;
+  users: Array<{
+    id: string;
+    name: string;
+    email: string;
+    role: string;
+  }>;
 };
 
 export function TaskEditForm({
@@ -52,10 +68,17 @@ export function TaskEditForm({
         <p className="text-xs font-semibold uppercase tracking-[0.28em] text-accent">
           Task detail
         </p>
-        <h2 className="text-2xl font-semibold text-ink">Refine the work item</h2>
+        <h2 className="text-2xl font-semibold text-ink">
+          Update task details
+        </h2>
+        <p className="text-sm leading-6 text-ink/70">
+          Edit ownership, reviewer, deadline, and blocker context here. Status
+          handoff happens in the workflow panel beside this form.
+        </p>
       </div>
       <form action={formAction} className="space-y-4">
         <input type="hidden" name="taskId" value={task.id} />
+        <input type="hidden" name="status" value={task.status} />
         <div className="space-y-2">
           <label htmlFor="edit-task-project" className="text-sm font-medium text-ink">
             Project
@@ -98,25 +121,6 @@ export function TaskEditForm({
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
             <label
-              htmlFor="edit-task-status"
-              className="text-sm font-medium text-ink"
-            >
-              Status
-            </label>
-            <Select
-              id="edit-task-status"
-              name="status"
-              defaultValue={task.status satisfies TaskStatus}
-            >
-              {taskStatusOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <label
               htmlFor="edit-task-priority"
               className="text-sm font-medium text-ink"
             >
@@ -134,6 +138,20 @@ export function TaskEditForm({
               ))}
             </Select>
           </div>
+          <div className="space-y-2">
+            <label
+              htmlFor="edit-task-due-date"
+              className="text-sm font-medium text-ink"
+            >
+              Due date
+            </label>
+            <Input
+              id="edit-task-due-date"
+              name="dueDate"
+              type="date"
+              defaultValue={task.dueDate?.toISOString().slice(0, 10) ?? ""}
+            />
+          </div>
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
@@ -141,7 +159,7 @@ export function TaskEditForm({
               htmlFor="edit-task-assignee"
               className="text-sm font-medium text-ink"
             >
-              Assignee
+              Current owner
             </label>
             <Select
               id="edit-task-assignee"
@@ -158,16 +176,58 @@ export function TaskEditForm({
           </div>
           <div className="space-y-2">
             <label
-              htmlFor="edit-task-due-date"
+              htmlFor="edit-task-reviewer"
               className="text-sm font-medium text-ink"
             >
-              Due date
+              Reviewer
             </label>
-            <Input
-              id="edit-task-due-date"
-              name="dueDate"
-              type="date"
-              defaultValue={task.dueDate?.toISOString().slice(0, 10) ?? ""}
+            <Select
+              id="edit-task-reviewer"
+              name="reviewerId"
+              defaultValue={task.reviewerId ?? ""}
+            >
+              <option value="">No reviewer yet</option>
+              {users.map((user) => (
+                <option key={user.id} value={user.id}>
+                  {user.name} · {user.email}
+                </option>
+              ))}
+            </Select>
+          </div>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2">
+            <label
+              htmlFor="edit-task-blocked-category"
+              className="text-sm font-medium text-ink"
+            >
+              Blocked category
+            </label>
+            <Select
+              id="edit-task-blocked-category"
+              name="blockedCategory"
+              defaultValue={task.blockedCategory ?? ""}
+            >
+              <option value="">None</option>
+              {blockedCategoryOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <label
+              htmlFor="edit-task-blocked-reason"
+              className="text-sm font-medium text-ink"
+            >
+              Blocked reason
+            </label>
+            <Textarea
+              id="edit-task-blocked-reason"
+              name="blockedReason"
+              defaultValue={task.blockedReason ?? ""}
+              className="min-h-24"
             />
           </div>
         </div>

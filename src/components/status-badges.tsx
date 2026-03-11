@@ -1,13 +1,20 @@
-import { type ProjectStatus, type TaskPriority, type TaskStatus } from "@prisma/client";
+import {
+  type ProjectStatus,
+  type TaskPriority,
+  type TaskStatus,
+  type WorkspaceRole
+} from "@prisma/client";
 
 import { Badge } from "@/components/ui/badge";
 import {
-  projectStatusLabels,
   projectStatusClasses,
-  taskPriorityLabels,
+  projectStatusLabels,
   taskPriorityClasses,
+  taskPriorityLabels,
+  taskStatusClasses,
   taskStatusLabels,
-  taskStatusClasses
+  workspaceRoleClasses,
+  workspaceRoleLabels
 } from "@/lib/constants";
 
 export function ProjectStatusBadge({
@@ -38,6 +45,14 @@ export function TaskPriorityBadge({
   return (
     <Badge className={taskPriorityClasses[priority]}>
       {taskPriorityLabels[priority]}
+    </Badge>
+  );
+}
+
+export function WorkspaceRoleBadge({ role }: { role: WorkspaceRole }) {
+  return (
+    <Badge className={workspaceRoleClasses[role]}>
+      {workspaceRoleLabels[role]}
     </Badge>
   );
 }

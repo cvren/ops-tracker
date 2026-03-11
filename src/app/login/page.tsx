@@ -25,32 +25,32 @@ export default async function LoginPage() {
             </p>
             <div className="max-w-2xl space-y-4">
               <h1 className="text-4xl font-semibold leading-tight sm:text-6xl">
-                Keep operations visible without leaving the browser.
+                Run the ops control tower from one shared workspace.
               </h1>
               <p className="max-w-xl text-sm leading-7 text-canvas/75">
-                Reviewers can sign in, create projects, capture tasks, shift
-                task status, and verify a realistic delivery flow in under five
-                minutes.
+                Teams can sign in, route ownership, leave task context in
+                comments, and clear review signals from an inbox instead of
+                losing them in chat or memory.
               </p>
             </div>
             <div className="grid gap-4 sm:grid-cols-3">
               <div className="rounded-[1.75rem] bg-white/10 p-4">
                 <p className="text-xs uppercase tracking-[0.22em] text-canvas/55">
-                  Core flow
+                  Handoff
                 </p>
-                <p className="mt-2 text-lg font-semibold">List → detail → move</p>
+                <p className="mt-2 text-lg font-semibold">Owner → review → done</p>
               </div>
               <div className="rounded-[1.75rem] bg-white/10 p-4">
                 <p className="text-xs uppercase tracking-[0.22em] text-canvas/55">
-                  Auth
+                  Trace
                 </p>
-                <p className="mt-2 text-lg font-semibold">DB-backed sessions</p>
+                <p className="mt-2 text-lg font-semibold">Comments + timeline</p>
               </div>
               <div className="rounded-[1.75rem] bg-white/10 p-4">
                 <p className="text-xs uppercase tracking-[0.22em] text-canvas/55">
-                  Demo
+                  Inbox
                 </p>
-                <p className="mt-2 text-lg font-semibold">Seeded accounts</p>
+                <p className="mt-2 text-lg font-semibold">Unread task signals</p>
               </div>
             </div>
           </div>
@@ -61,19 +61,23 @@ export default async function LoginPage() {
               Sign in
             </p>
             <h2 className="text-3xl font-semibold text-ink">
-              Access the review workspace
+              Access the ops control tower
             </h2>
             <p className="text-sm leading-6 text-ink/70">
-              Use the seeded reviewer credentials below after running the seed
-              script.
+              Use one of the seeded collaboration accounts below after running
+              the seed script.
             </p>
           </div>
           <LoginForm />
           {showDemoCredentials ? (
             <div className="rounded-[1.75rem] border border-black/10 bg-canvas/75 p-4 text-sm text-ink/75">
-              <p className="font-semibold text-ink">Demo account</p>
-              <p className="mt-2">Email: {env.OPS_TRACKER_DEMO_EMAIL}</p>
-              <p>Password: {env.OPS_TRACKER_DEMO_PASSWORD}</p>
+              <p className="font-semibold text-ink">Demo accounts</p>
+              <div className="mt-2 space-y-2">
+                <p>Admin: {env.OPS_TRACKER_DEMO_EMAIL}</p>
+                <p>Operator: {env.OPS_TRACKER_SECONDARY_EMAIL}</p>
+                <p>Reviewer: {env.OPS_TRACKER_TERTIARY_EMAIL}</p>
+                <p>Password: {env.OPS_TRACKER_DEMO_PASSWORD}</p>
+              </div>
             </div>
           ) : null}
         </Panel>

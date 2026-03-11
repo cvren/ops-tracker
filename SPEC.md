@@ -3,71 +3,147 @@
 ## Product
 
 - Project name: `ops-tracker`
+- Version target: `v0.2.0`
+- Implementation target: `Milestone 2: Comment + ActivityEvent + Notification Inbox`
 - Package name prefix: `@ops-tracker/*`
 - Docker Compose project name: `ops-tracker`
 - Environment variable prefix: `OPS_TRACKER_`
 
-## Goal
+## Milestone goal
 
-`ops-tracker` is an authenticated operations tracking web app for small and midsize teams. Reviewers can sign in with a seeded account, create and manage projects and tasks, move tasks across statuses, and confirm the core workflow in under five minutes.
+`ops-tracker` must keep the task context inside the product so handoff, review return, and mentions do not get lost in chat or memory.
 
-## Target users
+Milestone 2 is complete only when the following are true:
 
-- Team leads managing active client or internal delivery work
-- Coordinators who update task state from a desktop browser
-- Reviewers who need a seeded, repeatable local demo flow
+1. Comments are created and rendered from real task data.
+2. Mentions are stored durably and drive activity and notifications.
+3. Activity timeline shows who changed what and when.
+4. Inbox shows unread and read notifications with direct links back to the task.
+5. M1 ownership, review, and saved-view flows still work.
 
-## Core entities
+## Core entities in M2
 
 - User
+- Workspace
+- Membership
 - Project
 - Task
+- Comment
+- CommentMention
+- ActivityEvent
+- Notification
 - Session
 
-## Core use cases
+## M2 required scope
 
-1. Sign in with a seeded account and land on a protected dashboard.
-2. Create, search, view, edit, and archive projects.
-3. Create, search, view, edit, delete, and transition tasks inside projects.
-4. Complete the list -> detail -> update -> status transition -> refreshed list flow without leaving the browser.
+- Keep the M1 workspace and review foundation intact
+- Task comments:
+  - `taskId`
+  - `authorId`
+  - `body`
+  - `createdAt`
+  - `updatedAt`
+- Structured mentions through workspace-member selection
+- `ActivityEvent` event coverage for:
+  - task created
+  - task updated
+  - assignee changed
+  - reviewer changed
+  - due date changed
+  - status changed
+  - blocked
+  - unblocked
+  - review requested
+  - changes requested
+  - review approved / done
+  - comment created
+  - mention created
+- Task detail UI:
+  - comment composer
+  - comment list
+  - activity timeline
+- Inbox UI:
+  - unread/read state
+  - newest first
+  - nav badge
+  - direct link to the relevant task
+- Notification fan-out minimum:
+  - assignee set
+  - reviewer set
+  - review request
+  - changes requested
+  - mention
+  - comment on a task the user is involved in
+- Self-notification suppression
+- Notification dedupe for the same user and same event
+- Seed data and Playwright for the comment/timeline/inbox happy path
 
-## Functional requirements
+## Deferred to M3
 
-- Email/password authentication with server-enforced protected routes
-- Dashboard with summary metrics and recent work
-- Project CRUD with search and status filter
-- Task CRUD with validation, search, status filter, and project relation
-- Seeded demo data for:
-  - a normal populated state
-  - an empty state via a project with no tasks
-  - validation errors via form submissions
-- Loading, empty, error, and success states in core screens
-- Desktop-first responsive UI that remains usable on mobile
+- Email notifications
+- Slack notifications
+- Real-time updates
+- Attachment support
+- Rich text editor
+- Comment edit/delete/threading
+- Advanced notification preferences
+- Bulk notification actions as a milestone goal
+- Analytics, SLA, escalation, webhook, and automation features
 
-## Non-goals
+Repository note:
 
-- Billing or payment flows
-- External ERP integrations
-- Multi-tenant org management beyond a single seeded team
+- Existing foundations for later milestones may remain in the repository, but M2 completion is limited to the scope above.
 
-## Technical decisions
+## Technical constraints
 
-- Stack: TypeScript, Next.js App Router, React, Tailwind CSS, PostgreSQL, Prisma, pnpm, Docker Compose, Vitest, Playwright
-- Backend surface: Next.js Route Handlers and Server Actions
-- Auth: custom session cookie backed by database sessions
-- Deployment target for local review: Dockerized Postgres plus local Next.js app
+- Keep the existing Next.js, TypeScript, Prisma, PostgreSQL, pnpm, Vitest, Playwright, Tailwind, Docker Compose, and GitHub Actions stack
+- Keep the existing auth, session, membership, and review guard intact
+- Use structured mentions instead of brittle free-text parsing
+- Do not do project-wide refactors
+- Keep `v0.1.0` core flow and M1 flow working
 
-## Acceptance criteria
+## Deliverables for M2
 
-- `pnpm install`
-- `docker compose up -d`
-- `pnpm exec prisma generate`
-- `pnpm exec prisma migrate deploy || pnpm exec prisma migrate dev`
-- `pnpm db:seed`
-- `pnpm lint`
-- `pnpm typecheck`
-- `pnpm test`
-- `pnpm test:e2e`
-- `pnpm build`
+- Working source code for comments, mentions, activity timeline, and inbox
+- Prisma schema and SQL migration updates
+- Seed data for the M2 demo
+- Updated README and environment template
+- Updated `docs/handoffs/v0.1.0-to-v0.2.0.md`, `SPEC.md`, `PLAN.md`, `STATUS.md`, and release notes
+- Unit and Playwright coverage for the M2 flow
 
-All commands above complete successfully after copying `.env.example` to `.env`.
+## M2 done when
+
+- Task detail stores and displays comments from real data
+- Mentions are stored and drive notification fan-out
+- Activity timeline shows key task and review events
+- Inbox supports unread/read and shows unread count in nav
+- Self-notification suppression and dedupe work
+- M1 ownership, review, and saved views still work
+- Seed data supports the intended five-minute M2 demo
+- `STATUS.md` lists M3 deferred items
+- The following commands pass:
+  - `pnpm install`
+  - `docker compose up -d`
+  - `pnpm exec prisma generate`
+  - `pnpm exec prisma migrate deploy || pnpm exec prisma migrate dev`
+  - `pnpm db:seed`
+  - `pnpm lint`
+  - `pnpm typecheck`
+  - `pnpm test`
+  - `pnpm test:e2e`
+  - `pnpm build`
+
+## Validation commands
+
+```bash
+pnpm install
+docker compose up -d
+pnpm exec prisma generate
+pnpm exec prisma migrate deploy || pnpm exec prisma migrate dev
+pnpm db:seed
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm test:e2e
+pnpm build
+```

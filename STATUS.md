@@ -2,132 +2,92 @@
 
 ## Current state
 
-- `ops-tracker` is fully scaffolded and implemented
-- Auth, dashboard, project CRUD, task CRUD, search, and status transitions are working
-- Validation has been rerun serially as the current execution source of truth
-- `AGENTS.md` now exists in-repo, and Playwright no longer depends on an absolute workspace path
-- The Next.js build warning is resolved through the official Next 15 ESLint compatibility path, with no narrower workaround applied
-- Final hardening is complete, including pnpm install policy, clean-worktree setup audit, and CI automation
-- The GitHub Actions workflow has been statically audited against the current repo state and minimally hardened with explicit permissions, timeouts, and failure artifacts
+- `v0.2.0 Milestone 2` is implemented and validated locally
+- Task detail now stores and displays comments from real data
+- Structured mentions are stored in `CommentMention` and drive notification fan-out
+- `ActivityEvent` now covers comment mention plus blocked/unblocked states and powers task timelines
+- Inbox is reachable from nav, shows unread/read state, and links back to the relevant task
+- M1 ownership, review, and saved-view flows remain intact
+- Task transition feedback now survives refresh, and the e2e path waits on durable task-detail state instead of transient timing
+- M2 final hardening is focused only on GitHub workflow observation, pnpm install-warning disposition, and serial-run closeout
 
-## Decisions
+## M2 gap audit
 
-- Build a single-app authenticated operations tracker
-- Core entities are `Project` and `Task`
-- Use custom session auth backed by Prisma `Session`
-- Use a protected route handler for task status updates and server actions for form-driven mutations
-
-## Known issues
-
-- `[blocked]` GitHub-hosted runner execution for `.github/workflows/ci.yml` could not be started from this environment. Observed blockers in this turn: `git remote -v` returned no configured remote, `gh` is not installed (`gh auth status` failed with `command not found`), and the repository is still `No commits yet on main`. Static audit of the workflow remains positive, but there is no path from this workspace to push a branch or trigger Actions on GitHub.
-
-## Exact run commands
-
-```bash
-cp .env.example .env
-pnpm install
-docker compose up -d
-pnpm exec prisma generate
-pnpm exec prisma migrate deploy || pnpm exec prisma migrate dev
-pnpm db:seed
-pnpm dev
-```
-
-Optional one-command local start after `.env` exists:
-
-```bash
-pnpm dev:stack
-```
-
-Verified validation commands:
-
-```bash
-pnpm install
-docker compose up -d
-pnpm exec prisma generate
-pnpm exec prisma migrate deploy
-pnpm db:seed
-pnpm lint
-pnpm typecheck
-pnpm test
-pnpm test:e2e
-pnpm build
-```
-
-Latest cycle revalidation:
-
-```bash
-pnpm install
-docker compose up -d
-pnpm exec prisma generate
-pnpm exec prisma migrate deploy || pnpm exec prisma migrate dev
-pnpm db:seed
-pnpm lint
-pnpm typecheck
-pnpm test
-pnpm test:e2e
-pnpm build
-```
-
-Measured results:
-
-- `pnpm install`: passed with no ignored-build-script notice
-- `docker compose up -d`: passed
-- `pnpm exec prisma generate`: passed
-- `pnpm exec prisma migrate deploy`: passed with no pending migrations
-- `pnpm db:seed`: passed
-- `pnpm lint`: passed
-- `pnpm typecheck`: passed
-- `pnpm test`: passed
-- `pnpm test:e2e`: passed
-- `pnpm build`: passed with no Next.js ESLint warning
-
-Fresh-worktree audit:
-
-- removed `/tmp/ops-tracker-clean/node_modules` and reran `pnpm install`
-- fresh install passed with no ignored-build-script notice
-- current worktree also passed with no ignored-build-script notice after `pnpm rebuild @prisma/client @prisma/engines esbuild prisma sharp`
-
-Workflow static audit:
-
-- Node is fixed to major version `22` in `actions/setup-node`, matching the repo's `engines.node >=22`
-- `pnpm` is fixed to `10.7.0` via `pnpm/action-setup`
-- pnpm cache is enabled through `actions/setup-node`
-- PostgreSQL is declared as a GitHub Actions service with health checks and the same port as local docs
-- `.env` is generated from `.env.example`, so no GitHub secret is required for this workflow
-- command order matches the local setup and validation path: install -> generate -> migrate -> seed -> validate/build or e2e
-- the e2e job installs Chromium explicitly and relies on Playwright's `webServer` to boot Next.js on port `3100`
-- `build` and `test:e2e` are isolated in separate sequential jobs, matching the repo's serial-run constraint
-- workflow hardening added explicit `contents: read` permissions, job timeouts, and failure artifact upload for `playwright-report` plus `test-results`
-
-GitHub execution blockers observed in this turn:
-
-- `git remote -v`: no configured remote
-- `git branch --show-current`: `main`
-- `git status --short --branch`: `## No commits yet on main`
-- `gh auth status`: unavailable because `gh` is not installed in this environment
-
-Root cause of the former warning:
-
-- Next.js checks the resolved ESLint config for `eslint.config.mjs` / `package.json`
-- The repo only registered `@next/next` inside a `files: ["**/*.{ts,tsx}"]` block, so the plugin was visible for app code but not for config-file resolution
-- For the installed Next 15.5.12 toolchain, the version-appropriate official fix is `FlatCompat` plus `next/core-web-vitals` and `next/typescript`
-- Adopting that official compatibility path made `@next/next` visible to Next.js during `pnpm build`, so no config-shape workaround was needed
-
-Validation note:
-
-- `pnpm build` and `pnpm test:e2e` must be run serially, not in parallel, because both start Next.js processes that contend for the same `.next` workspace
-- Inside the Codex sandbox, Prisma and Next.js commands that connect to `127.0.0.1:5434` required escalated execution; this is a local sandbox constraint, not a repository issue
-- `pnpm` 10 requires explicit dependency build-script policy. This repo now allows `@prisma/client`, `@prisma/engines`, `esbuild`, `prisma`, and `sharp`, and intentionally ignores `unrs-resolver` because its `postinstall` only checks optional native resolver bindings and validation succeeds without approving it
-- If a developer installed dependencies before that policy existed, one `pnpm rebuild @prisma/client @prisma/engines esbuild prisma sharp` clears the stale ignored-build state for the current worktree
-- On a fresh install, `@prisma/client` can still print its stock Prisma CLI hint before the explicit `pnpm exec prisma generate` step. That output is expected and does not indicate a missing dependency in this repo
-- CI coverage now lives in `.github/workflows/ci.yml` and runs the serial validation path plus a seeded Playwright job; local static audit is complete, but GitHub-hosted execution remains the only unobserved part
-
-## Assumptions
-
-- No existing repo conventions are available, so the default stack from the user specification is the source of truth
-- A single-team local demo is sufficient for the initial production-ready baseline
+- `[done]` Comments: task detail has a real comment composer and list, `Comment` persists task/author/body/timestamps, empty comments are rejected, and viewers stay read-only
+- `[done]` Mentions: structured multi-select saves durable `CommentMention` rows and suppresses self-notifications
+- `[done]` Activity events: shared helpers create task, assignment, reviewer, due date, status, blocked/unblocked, review, comment, and mention events with actor/timestamp/summary payloads
+- `[done]` Inbox: `Notification` references `ActivityEvent`, dedupes by `(userId, activityEventId)`, supports unread/read, shows a nav badge, and links back to relevant task anchors
+- `[done]` Timeline: task detail renders actor, event kind, summary, and timestamp so comment/review/status flow is readable from the UI
+- `[done]` Seed, tests, docs, and release notes: seed includes comments, mentions, review events, and read/unread notifications; unit and Playwright cover the M2 happy path
+- `[partial]` Closeout hardening: GitHub-hosted runner observation, pnpm install-warning disposition, and serial-run wording are still being audited in this pass
 
 ## Next step
 
-- Human step required: create or connect a GitHub repository, commit the current tree, push `main` or a PR branch, and inspect the `validate` and `e2e` workflow runs on GitHub-hosted `ubuntu-latest` runners.
+- Finish M2 closeout by turning the remaining `[follow-up]` items into either observed success or concrete `[blocked]` limitations.
+
+## Decisions
+
+- `SPEC.md` is now scoped to M2 completion instead of M1
+- Membership, not legacy `User.role`, remains the effective authorization boundary
+- Single-workspace UX remains the only supported collaboration model in `v0.2.0`
+- Notification fan-out stays centralized around shared activity helpers instead of adding a generic queue or event bus
+- Structured mention selection is used instead of free-text parsing
+- Minimal code changes are acceptable during closure only when a shipped gap is reproduced; this pass used that rule for task transition feedback persistence
+
+## Known issues
+
+- `[follow-up]` GitHub-hosted runner execution cannot be observed from this environment until the repository is connected to a remote and pushed
+- `[follow-up]` `corepack pnpm install` still emits an ignored build-scripts warning for optional/native packages, although install and all validation commands pass
+- `[follow-up]` Running `pnpm build` in parallel with `pnpm test:e2e` in the same working tree can race on `.next` artifacts and surface a transient `/_document` lookup failure; serial validation avoids the issue
+
+## Exact run commands
+
+Validation commands completed for `v0.2.0 Milestone 2`:
+
+```bash
+corepack pnpm install
+docker compose up -d
+corepack pnpm exec prisma generate
+corepack pnpm exec prisma migrate deploy
+corepack pnpm db:seed
+corepack pnpm lint
+corepack pnpm typecheck
+corepack pnpm test
+corepack pnpm test:e2e
+corepack pnpm build
+```
+
+Results:
+
+- `corepack pnpm install`: passed, with ignored build-scripts warning only
+- `docker compose up -d`: passed
+- `corepack pnpm exec prisma generate`: passed
+- `corepack pnpm exec prisma migrate deploy`: passed, no pending migrations
+- `corepack pnpm db:seed`: passed
+- `corepack pnpm lint`: passed
+- `corepack pnpm typecheck`: passed
+- `corepack pnpm test`: passed, 7 files / 34 tests
+- `corepack pnpm test:e2e`: passed, 1 Playwright spec
+- `corepack pnpm build`: passed when run serially after the rest of the validation path
+
+## Demo target for M2
+
+1. Sign in as the admin user.
+2. Open `Dashboard` and `Workspace` to verify saved views and the membership roster.
+3. Create a project and a task with owner, reviewer, and due date.
+4. Sign in as the operator, open `My Tasks`, start work, add a comment, mention the reviewer, and request review.
+5. Sign in as the reviewer, open `Inbox`, verify unread notifications, mark them read, and open `Needs Review`.
+6. Open the task detail, inspect the comment and timeline, then return `Changes requested`.
+7. Sign in as the operator, confirm the inbox update, add another comment with a mention, and request review again.
+8. Sign in as the reviewer, open the inbox item back to the task, inspect the updated timeline, and approve the task.
+9. Sign in as the operator, confirm the approval notification in `Inbox`, then verify `Overdue` and `Unassigned` still surface seeded risk items.
+
+## Deferred items for M3
+
+- Email notifications
+- Slack notifications
+- Real-time updates
+- Attachment support
+- Comment edit/delete/threading
+- Advanced notification preferences and bulk actions
+- Analytics, SLA, webhook, and automation features

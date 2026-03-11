@@ -2,34 +2,80 @@
 
 ## Milestones
 
-1. Project foundation
-   - Completed: repository docs, Next.js scaffold, Prisma schema, Docker Compose, env files, Tailwind, ESLint, Prettier, Vitest, and Playwright
-2. Core product implementation
-   - Completed: auth, protected routes, dashboard, project CRUD, task CRUD, status transitions, and seed data
-3. Verification and polish
-   - Completed: unit tests, Playwright reviewer flow, README, and local validation commands
+1. M2 scope lock and audit
+   - Acceptance criteria:
+     - handoff and markdown docs describe M2 instead of M1
+     - M1 foundations are confirmed without broad rework
+     - gaps in comments, activity, and inbox are identified from the current codebase
+2. Activity and notification model completion
+   - Acceptance criteria:
+     - activity event types cover comment mentions and blocked/unblocked states
+     - notification fan-out is centralized, deduplicated, and suppresses self-notifications
+     - schema, migration, and seed reflect M2 behavior
+3. Comment and timeline UI
+   - Acceptance criteria:
+     - task detail shows comment composer and comment list
+     - timeline shows actor, event kind, summary, and timestamp
+     - viewer remains read-only
+4. Inbox UI and navigation
+   - Acceptance criteria:
+     - inbox is reachable from nav
+     - unread badge appears in nav
+     - notifications open the relevant task detail
+     - read/unread actions work
+5. Seed, test, and docs closure
+   - Acceptance criteria:
+     - seed data demonstrates comments, mentions, activity, and unread/read notifications
+     - Playwright covers comment, mention, inbox, changes requested, re-review, and done
+     - validation commands pass locally and README matches the demo
+6. M3 handoff
+   - Acceptance criteria:
+     - deferred items are listed explicitly in `STATUS.md`
+     - M3 ideas do not block M2 completion
 
 ## Current cycle
 
-- Scope: observe `.github/workflows/ci.yml` on a real GitHub-hosted runner, or record the exact blockers if this environment cannot reach that step
-- Status: blocked
+- Scope: Milestone 2
+- Status: final hardening in progress
 - Acceptance:
-  - `validate` and `e2e` are observed on a GitHub-hosted runner, or
-  - the exact missing permissions/tooling are recorded in `STATUS.md` with the next human step
+  - M1 foundations stay intact while comments, timeline, and inbox become visible and validated
+  - fan-out and activity generation stay centralized around shared helpers
+  - docs and demo steps now reflect the M2 workflow
+- Closeout scope:
+  - observe GitHub-hosted workflow execution for the current M2 state, or record a concrete blocker
+  - resolve or explicitly disposition the `corepack pnpm install` ignored build-scripts warning
+  - harden the serial-run constraint so local docs and CI cannot be read as parallel-safe
+  - update `PLAN.md`, `STATUS.md`, `README.md`, and `RELEASE_NOTES_v0.2.0.md` to the latest measured truth
+- Closure audit:
+  - `[done]` Comments are created and rendered from real task data, with read-only viewer behavior preserved
+  - `[done]` Structured mentions are stored durably and routed through shared notification helpers
+  - `[done]` `ActivityEvent` covers comment, review, assignment, due date, and blocked-state changes
+  - `[done]` Inbox, unread badge, and read transitions are implemented and linked back to task anchors
+  - `[done]` Seed, unit tests, Playwright, README, and release notes all reflect the shipped M2 flow
+  - `[partial]` Final hardening remains open until GitHub observation, install-warning disposition, and serial-run hardening are closed
 - Validation commands:
-  - `git remote -v`
-  - `git branch --show-current`
-  - `git status --short --branch`
-  - `gh auth status`
+  - `corepack pnpm install`
+  - `docker compose up -d`
+  - `corepack pnpm exec prisma generate`
+  - `corepack pnpm exec prisma migrate deploy`
+  - `corepack pnpm db:seed`
+  - `corepack pnpm lint`
+  - `corepack pnpm typecheck`
+  - `corepack pnpm test`
+  - `corepack pnpm test:e2e`
+  - `corepack pnpm build`
 
-## Acceptance criteria
+## Architecture decisions
 
-- Seeded reviewer can sign in with README instructions only
-- Reviewer can create a project, create a task, update the task status, search for the task, and view the updated detail page
-- Reviewer can observe empty state, validation error state, and success feedback
-- All validation commands from `SPEC.md` pass locally
+- Keep the existing database-backed session auth and `Membership.role` authorization boundary
+- Reuse existing `Comment`, `CommentMention`, `ActivityEvent`, and `Notification` entities already present in the repository
+- Keep fan-out logic in shared activity helpers instead of introducing a queue or event-bus abstraction
+- Use structured mention selection rather than free-text parsing
+- Keep the product single-workspace in `v0.2.0`
+- For M2 closure, add no net-new code unless a missing behavior is reproduced from the current repository state
+- Tooling changes are allowed during closeout only when they remove ambiguity from validation or CI behavior without expanding product scope
 
-## Validation commands
+## Validation strategy
 
 ```bash
 pnpm install
@@ -43,14 +89,3 @@ pnpm test
 pnpm test:e2e
 pnpm build
 ```
-
-## Architecture decisions
-
-- Use a single Next.js app to avoid premature service boundaries
-- Use Prisma with a PostgreSQL container and committed SQL migrations
-- Keep auth state in the database with hashed session tokens
-- Favor server components and server actions for data mutations, with small client components only where interaction benefits
-- Use a protected task status route handler so the reviewer flow demonstrates UI -> API -> DB for a core state transition
-- Use the Next 15 official `FlatCompat` path with `next/core-web-vitals` and `next/typescript` instead of custom manual Next plugin wiring
-- Treat `unrs-resolver`'s ignored `postinstall` as an explicit pnpm policy decision, because the repo does not require approving that optional native binding check to pass validation
-- Allow the required install scripts for Prisma, esbuild, and sharp through `pnpm.onlyBuiltDependencies` so a fresh clone does not need manual build-script approval

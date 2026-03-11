@@ -3,8 +3,7 @@
 import {
   type Project,
   type TaskPriority,
-  type TaskStatus,
-  type User
+  type TaskStatus
 } from "@prisma/client";
 import { useActionState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
@@ -17,6 +16,7 @@ import { Panel } from "@/components/ui/panel";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  blockedCategoryOptions,
   taskPriorityOptions,
   taskStatusOptions
 } from "@/lib/constants";
@@ -24,9 +24,18 @@ import { INITIAL_ACTION_STATE } from "@/lib/forms";
 
 type TaskCreateFormProps = {
   defaultProjectId: string;
-  projects: Project[];
-  users: Pick<User, "id" | "name" | "email">[];
+  projects: Pick<Project, "id" | "code" | "name">[];
+  users: Array<{
+    id: string;
+    name: string;
+    email: string;
+    role: string;
+  }>;
 };
+
+const creatableStatusOptions = taskStatusOptions.filter((option) =>
+  ["BACKLOG", "IN_PROGRESS", "BLOCKED"].includes(option.value)
+);
 
 export function TaskCreateForm({
   defaultProjectId,
@@ -53,7 +62,11 @@ export function TaskCreateForm({
         <p className="text-xs font-semibold uppercase tracking-[0.28em] text-accent">
           New task
         </p>
-        <h2 className="text-2xl font-semibold text-ink">Capture the next move</h2>
+        <h2 className="text-2xl font-semibold text-ink">Capture the next handoff</h2>
+        <p className="text-sm leading-6 text-ink/70">
+          Set the current owner, reviewer, due date, and any blocker context up
+          front so the next person knows what to do.
+        </p>
       </div>
       <form ref={formRef} action={formAction} className="space-y-4">
         <div className="space-y-2">
@@ -92,20 +105,20 @@ export function TaskCreateForm({
           <Textarea
             id="task-description"
             name="description"
-            placeholder="Describe the next operational step, handoff risk, and outcome."
+            placeholder="Describe the current step, the handoff risk, and the expected outcome."
           />
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
             <label htmlFor="task-status" className="text-sm font-medium text-ink">
-              Status
+              Starting status
             </label>
             <Select
               id="task-status"
               name="status"
               defaultValue={"BACKLOG" satisfies TaskStatus}
             >
-              {taskStatusOptions.map((option) => (
+              {creatableStatusOptions.map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
                 </option>
@@ -135,7 +148,7 @@ export function TaskCreateForm({
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
             <label htmlFor="task-assignee" className="text-sm font-medium text-ink">
-              Assignee
+              Current owner
             </label>
             <Select id="task-assignee" name="assigneeId" defaultValue="">
               <option value="">Unassigned</option>
@@ -147,11 +160,56 @@ export function TaskCreateForm({
             </Select>
           </div>
           <div className="space-y-2">
+            <label htmlFor="task-reviewer" className="text-sm font-medium text-ink">
+              Reviewer
+            </label>
+            <Select id="task-reviewer" name="reviewerId" defaultValue="">
+              <option value="">No reviewer yet</option>
+              {users.map((user) => (
+                <option key={user.id} value={user.id}>
+                  {user.name} · {user.email}
+                </option>
+              ))}
+            </Select>
+          </div>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2">
             <label htmlFor="task-due-date" className="text-sm font-medium text-ink">
               Due date
             </label>
             <Input id="task-due-date" name="dueDate" type="date" />
           </div>
+          <div className="space-y-2">
+            <label
+              htmlFor="task-blocked-category"
+              className="text-sm font-medium text-ink"
+            >
+              Blocked category
+            </label>
+            <Select id="task-blocked-category" name="blockedCategory" defaultValue="">
+              <option value="">None</option>
+              {blockedCategoryOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </Select>
+          </div>
+        </div>
+        <div className="space-y-2">
+          <label
+            htmlFor="task-blocked-reason"
+            className="text-sm font-medium text-ink"
+          >
+            Blocked reason
+          </label>
+          <Textarea
+            id="task-blocked-reason"
+            name="blockedReason"
+            placeholder="Required if the task starts blocked."
+            className="min-h-24"
+          />
         </div>
         <ActionFeedback state={state} />
         <SubmitButton label="Create task" pendingLabel="Creating..." />

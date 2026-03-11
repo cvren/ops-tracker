@@ -1,14 +1,16 @@
 import { signOutAction } from "@/app/actions/auth-actions";
 import { NavLinks } from "@/components/layout/nav-links";
+import { WorkspaceRoleBadge } from "@/components/status-badges";
 import { Button } from "@/components/ui/button";
-import { requireUser } from "@/lib/auth";
+import { getAppShellData } from "@/lib/data";
 
 export default async function AppLayout({
   children
 }: {
   children: React.ReactNode;
 }) {
-  const user = await requireUser();
+  const { membership, unreadNotifications, user, workspace } =
+    await getAppShellData();
 
   return (
     <div className="mx-auto min-h-screen max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
@@ -19,15 +21,21 @@ export default async function AppLayout({
               ops-tracker
             </p>
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:gap-6">
-              <h1 className="text-2xl font-semibold text-ink">
-                Operations command surface
-              </h1>
-              <NavLinks />
+              <div className="space-y-1">
+                <h1 className="text-2xl font-semibold text-ink">
+                  {workspace.name}
+                </h1>
+                <p className="text-sm text-ink/65">{workspace.description}</p>
+              </div>
+              <NavLinks unreadCount={unreadNotifications} />
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="rounded-full bg-white/80 px-4 py-2 text-sm text-ink/80">
-              {user.name}
+          <div className="flex flex-wrap items-center justify-end gap-3">
+            <div className="rounded-[1.5rem] bg-white/80 px-4 py-3 text-sm text-ink/80">
+              <p className="font-semibold">{user.name}</p>
+              <div className="mt-2">
+                <WorkspaceRoleBadge role={membership.role} />
+              </div>
             </div>
             <form action={signOutAction}>
               <Button type="submit" variant="secondary">

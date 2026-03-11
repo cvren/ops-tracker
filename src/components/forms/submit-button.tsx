@@ -5,6 +5,7 @@ import { useFormStatus } from "react-dom";
 import { Button } from "@/components/ui/button";
 
 type SubmitButtonProps = {
+  className?: string;
   label: string;
   pendingLabel?: string;
   variant?: "primary" | "secondary" | "ghost" | "danger";
@@ -12,6 +13,7 @@ type SubmitButtonProps = {
 };
 
 export function SubmitButton({
+  className,
   label,
   pendingLabel,
   variant = "primary",
@@ -25,6 +27,7 @@ export function SubmitButton({
       variant={variant}
       disabled={pending}
       fullWidth={fullWidth}
+      className={className}
     >
       {pending ? pendingLabel ?? "Working..." : label}
     </Button>

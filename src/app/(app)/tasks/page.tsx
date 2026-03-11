@@ -14,9 +14,11 @@ import { Panel } from "@/components/ui/panel";
 import { Select } from "@/components/ui/select";
 import {
   taskPriorityOptions,
-  taskStatusOptions
+  taskStatusOptions,
+  taskViewOptions
 } from "@/lib/constants";
 import { listProjects, listTasks } from "@/lib/data";
+import { getDueDateBoundary, parseTaskView } from "@/lib/task-views";
 import { formatDate, formatDateTime } from "@/lib/utils";
 
 type TasksPageProps = {
@@ -31,6 +33,9 @@ export default async function TasksPage({ searchParams }: TasksPageProps) {
     typeof params.priority === "string" ? params.priority : "";
   const rawProjectId =
     typeof params.projectId === "string" ? params.projectId : "";
+  const view = parseTaskView(
+    typeof params.view === "string" ? params.view : undefined
+  );
 
   const status = Object.values(TaskStatus).includes(rawStatus as TaskStatus)
     ? (rawStatus as TaskStatus)
@@ -46,21 +51,48 @@ export default async function TasksPage({ searchParams }: TasksPageProps) {
       query,
       status,
       priority,
-      projectId: rawProjectId || undefined
+      projectId: rawProjectId || undefined,
+      view
     }),
     listProjects()
   ]);
+
+  const overdueBoundary = getDueDateBoundary();
 
   return (
     <div className="space-y-8">
       <PageHeader
         eyebrow="Tasks"
-        title="Search and move work without losing context."
-        description="Use the global task list to confirm assignments, due dates, and delivery status across every active project."
+        title="Work the queue with ownership and review context."
+        description="Filter the shared task list by saved view, reviewer, owner, deadline, and project so handoffs do not drift into Slack or memory."
       />
 
       <Panel className="space-y-4">
+        <div className="flex flex-wrap gap-2">
+          <Link
+            href="/tasks"
+            className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+              !view ? "bg-ink text-canvas" : "bg-white/70 text-ink hover:bg-white"
+            }`}
+          >
+            All Tasks
+          </Link>
+          {taskViewOptions.map((option) => (
+            <Link
+              key={option.value}
+              href={`/tasks?view=${option.value}` as Route}
+              className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+                view === option.value
+                  ? "bg-ink text-canvas"
+                  : "bg-white/70 text-ink hover:bg-white"
+              }`}
+            >
+              {option.label}
+            </Link>
+          ))}
+        </div>
         <form className="grid gap-4 xl:grid-cols-[1.2fr_190px_190px_240px_auto]">
+          {view ? <input type="hidden" name="view" value={view} /> : null}
           <Input
             name="q"
             defaultValue={query}
@@ -99,46 +131,64 @@ export default async function TasksPage({ searchParams }: TasksPageProps) {
       {tasks.length === 0 ? (
         <EmptyState
           title="No matching tasks"
-          description="Try a broader search or create a new task from a project detail page."
+          description="Try a broader filter or create a new task from a project detail page."
           ctaHref="/projects"
           ctaLabel="Go to projects"
         />
       ) : (
         <div className="grid gap-4">
-          {tasks.map((task) => (
-            <Link
-              key={task.id}
-              href={`/tasks/${task.id}` as Route}
-              className="block"
-            >
-              <Panel className="animate-fade-up transition hover:-translate-y-0.5 hover:bg-white/85">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                  <div className="space-y-3">
-                    <div className="flex flex-wrap gap-2">
-                      <TaskStatusBadge status={task.status} />
-                      <TaskPriorityBadge priority={task.priority} />
-                    </div>
-                    <div>
-                      <h2 className="text-2xl font-semibold text-ink">
-                        {task.title}
-                      </h2>
-                      <p className="mt-1 text-sm font-medium text-ink/60">
-                        {task.project.code} · {task.project.name}
+          {tasks.map((task) => {
+            const isOverdue =
+              task.dueDate !== null &&
+              task.status !== "DONE" &&
+              task.dueDate < overdueBoundary;
+
+            return (
+              <Link
+                key={task.id}
+                href={`/tasks/${task.id}` as Route}
+                className="block"
+              >
+                <Panel className="animate-fade-up transition hover:-translate-y-0.5 hover:bg-white/85">
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="space-y-3">
+                      <div className="flex flex-wrap gap-2">
+                        <TaskStatusBadge status={task.status} />
+                        <TaskPriorityBadge priority={task.priority} />
+                        {isOverdue ? (
+                          <span className="rounded-full bg-rose-100 px-3 py-1 text-xs font-semibold text-rose-900">
+                            Overdue
+                          </span>
+                        ) : null}
+                        {!task.assigneeId && task.status !== "DONE" ? (
+                          <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-900">
+                            Unassigned
+                          </span>
+                        ) : null}
+                      </div>
+                      <div>
+                        <h2 className="text-2xl font-semibold text-ink">
+                          {task.title}
+                        </h2>
+                        <p className="mt-1 text-sm font-medium text-ink/60">
+                          {task.project.code} · {task.project.name}
+                        </p>
+                      </div>
+                      <p className="max-w-3xl text-sm leading-6 text-ink/70">
+                        {task.description}
                       </p>
                     </div>
-                    <p className="max-w-3xl text-sm leading-6 text-ink/70">
-                      {task.description}
-                    </p>
+                    <div className="space-y-2 rounded-[1.5rem] bg-canvas/70 px-4 py-3 text-sm text-ink/70">
+                      <p>Owner: {task.assignee?.name ?? "Unassigned"}</p>
+                      <p>Reviewer: {task.reviewer?.name ?? "None"}</p>
+                      <p>Due: {formatDate(task.dueDate)}</p>
+                      <p>Updated: {formatDateTime(task.updatedAt)}</p>
+                    </div>
                   </div>
-                  <div className="space-y-2 rounded-[1.5rem] bg-canvas/70 px-4 py-3 text-sm text-ink/70">
-                    <p>Assignee: {task.assignee?.name ?? "Unassigned"}</p>
-                    <p>Due: {formatDate(task.dueDate)}</p>
-                    <p>Updated: {formatDateTime(task.updatedAt)}</p>
-                  </div>
-                </div>
-              </Panel>
-            </Link>
-          ))}
+                </Panel>
+              </Link>
+            );
+          })}
         </div>
       )}
     </div>
