@@ -85,3 +85,11 @@
 - Advanced execution history UI
 - Notification fan-out for recurring execution
 - Member-facing repeat-work permissions beyond admins
+
+## Post-release correction
+
+- v0.3.0 has already been merged to `main` and tagged.
+- The earlier release-closeout steps above are historical and no longer the current next action.
+- M4 should start from `main`, not from the old closeout thread.
+- [follow-up] The most recent local `pnpm test:e2e` rerun showed 2 failures, so the repository should not claim a fully green local closeout until that is reconciled.
+- Use `docs/handoffs/m3-to-m4.md` as the main handoff note for M4.
