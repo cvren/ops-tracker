@@ -1,9 +1,22 @@
 import {
+  BlockedCategory,
   ProjectStatus,
   TaskPriority,
-  TaskStatus
+  TaskStatus,
+  WorkspaceRole
 } from "@prisma/client";
 import { z } from "zod";
+
+const optionalIdSchema = z.string().cuid().optional().or(z.literal(""));
+
+const dateInputSchema = z
+  .string()
+  .optional()
+  .transform((value) => value?.trim() ?? "")
+  .refine(
+    (value) => value === "" || /^\d{4}-\d{2}-\d{2}$/.test(value),
+    "Use a valid due date."
+  );
 
 export const loginSchema = z.object({
   email: z.string().email("Use a valid email address."),
@@ -34,29 +47,73 @@ export const projectSchema = z.object({
   status: z.nativeEnum(ProjectStatus)
 });
 
-export const taskSchema = z.object({
-  projectId: z.string().cuid("Select a valid project."),
-  title: z
+export const taskSchema = z
+  .object({
+    projectId: z.string().cuid("Select a valid project."),
+    title: z
+      .string()
+      .trim()
+      .min(3, "Task title must be at least 3 characters.")
+      .max(120, "Task title must be 120 characters or fewer."),
+    description: z
+      .string()
+      .trim()
+      .min(10, "Description must be at least 10 characters.")
+      .max(1000, "Description must be 1000 characters or fewer."),
+    status: z.nativeEnum(TaskStatus),
+    priority: z.nativeEnum(TaskPriority),
+    assigneeId: optionalIdSchema,
+    reviewerId: optionalIdSchema,
+    dueDate: dateInputSchema,
+    blockedReason: z
+      .string()
+      .optional()
+      .transform((value) => value?.trim() ?? ""),
+    blockedCategory: z
+      .union([z.nativeEnum(BlockedCategory), z.literal("")])
+      .optional()
+      .transform((value) => value ?? "")
+  })
+  .superRefine((data, context) => {
+    if (data.status === TaskStatus.BLOCKED && data.blockedReason === "") {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["blockedReason"],
+        message: "Blocked tasks require a reason."
+      });
+    }
+
+    if (
+      data.assigneeId &&
+      data.reviewerId &&
+      data.assigneeId === data.reviewerId
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["reviewerId"],
+        message: "Reviewer must be different from the assignee."
+      });
+    }
+  });
+
+export const commentSchema = z.object({
+  taskId: z.string().cuid("Comment target is invalid."),
+  body: z
     .string()
     .trim()
-    .min(3, "Task title must be at least 3 characters.")
-    .max(120, "Task title must be 120 characters or fewer."),
-  description: z
-    .string()
-    .trim()
-    .min(10, "Description must be at least 10 characters.")
-    .max(1000, "Description must be 1000 characters or fewer."),
-  status: z.nativeEnum(TaskStatus),
-  priority: z.nativeEnum(TaskPriority),
-  assigneeId: z.string().cuid().optional().or(z.literal("")),
-  dueDate: z
-    .string()
-    .optional()
-    .transform((value) => value?.trim() ?? "")
-    .refine(
-      (value) => value === "" || /^\d{4}-\d{2}-\d{2}$/.test(value),
-      "Use a valid due date."
-    )
+    .min(2, "Comment must be at least 2 characters.")
+    .max(2000, "Comment must be 2000 characters or fewer."),
+  mentionedUserIds: z.array(z.string().cuid()).max(10)
+});
+
+export const createMembershipSchema = z.object({
+  userId: z.string().cuid("Choose a valid user."),
+  role: z.nativeEnum(WorkspaceRole)
+});
+
+export const updateMembershipRoleSchema = z.object({
+  membershipId: z.string().cuid("Choose a valid member."),
+  role: z.nativeEnum(WorkspaceRole)
 });
 
 export const taskStatusUpdateSchema = z.object({
@@ -69,6 +126,17 @@ export function getStringValue(
 ): string {
   const value = formData.get(key);
   return typeof value === "string" ? value : "";
+}
+
+export function getStringArrayValues(
+  formData: FormData,
+  key: string
+): string[] {
+  return formData
+    .getAll(key)
+    .filter((value): value is string => typeof value === "string")
+    .map((value) => value.trim())
+    .filter(Boolean);
 }
 
 export function parseProjectFormData(formData: FormData) {
@@ -88,7 +156,18 @@ export function parseTaskFormData(formData: FormData) {
     status: getStringValue(formData, "status"),
     priority: getStringValue(formData, "priority"),
     assigneeId: getStringValue(formData, "assigneeId"),
-    dueDate: getStringValue(formData, "dueDate")
+    reviewerId: getStringValue(formData, "reviewerId"),
+    dueDate: getStringValue(formData, "dueDate"),
+    blockedReason: getStringValue(formData, "blockedReason"),
+    blockedCategory: getStringValue(formData, "blockedCategory")
+  });
+}
+
+export function parseCommentFormData(formData: FormData) {
+  return commentSchema.safeParse({
+    taskId: getStringValue(formData, "taskId"),
+    body: getStringValue(formData, "body"),
+    mentionedUserIds: getStringArrayValues(formData, "mentionedUserIds")
   });
 }
 
@@ -102,4 +181,15 @@ export function normalizeDueDate(value: string) {
   }
 
   return new Date(`${value}T12:00:00.000Z`);
+}
+
+export function normalizeOptionalText(value: string) {
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+export function normalizeOptionalEnum(value: ""): null;
+export function normalizeOptionalEnum<T extends string>(value: T): T;
+export function normalizeOptionalEnum<T extends string>(value: T | "") {
+  return value === "" ? null : value;
 }

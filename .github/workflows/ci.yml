@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - main
+      - "codex/**"
 
 permissions:
   contents: read
@@ -13,10 +14,12 @@ env:
   DATABASE_URL: postgresql://ops_tracker:ops_tracker@127.0.0.1:5434/ops_tracker?schema=public
   OPS_TRACKER_SESSION_COOKIE: ops-tracker-session
   OPS_TRACKER_SESSION_SECRET: change-this-secret-locally
-  OPS_TRACKER_DEMO_EMAIL: reviewer@ops-tracker.local
+  OPS_TRACKER_DEMO_EMAIL: admin@ops-tracker.local
   OPS_TRACKER_DEMO_PASSWORD: ChangeMe123!
-  OPS_TRACKER_SECONDARY_EMAIL: coordinator@ops-tracker.local
+  OPS_TRACKER_SECONDARY_EMAIL: operator@ops-tracker.local
   OPS_TRACKER_SECONDARY_PASSWORD: ChangeMe123!
+  OPS_TRACKER_TERTIARY_EMAIL: reviewer@ops-tracker.local
+  OPS_TRACKER_TERTIARY_PASSWORD: ChangeMe123!
   NEXT_TELEMETRY_DISABLED: "1"
 
 jobs:
@@ -42,7 +45,7 @@ jobs:
 
       - uses: pnpm/action-setup@v4
         with:
-          version: 10.7.0
+          version: 10.19.0
 
       - uses: actions/setup-node@v4
         with:
@@ -99,7 +102,7 @@ jobs:
 
       - uses: pnpm/action-setup@v4
         with:
-          version: 10.7.0
+          version: 10.19.0
 
       - uses: actions/setup-node@v4
         with:

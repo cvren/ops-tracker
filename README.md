@@ -1,6 +1,26 @@
 # ops-tracker
 
-`ops-tracker` is an authenticated operations tracker for small delivery teams. It lets reviewers sign in with seeded accounts, create and manage projects, capture tasks, move task status through a protected API route, and verify the full list-to-detail workflow in a few minutes.
+`ops-tracker` `v0.2.0` is an authenticated operations tracker for shared ownership, review handoff, task comments, activity trace, and inbox notifications. The release ships the M1 ownership/review foundation plus the M2 comment, timeline, and inbox flow.
+
+## Shipped in v0.2.0
+
+- Single `Workspace` + `Membership` collaboration boundary
+- Workspace roles: `admin`, `member`, `viewer`
+- Task owner, reviewer, due date, blocked reason, and review lifecycle
+- Task comments with structured mentions
+- Task activity timeline powered by `ActivityEvent`
+- In-app inbox powered by `Notification`
+- Saved views: `My Tasks`, `Needs Review`, `Overdue`, `Unassigned`
+
+## Known limits in v0.2.0
+
+- Email notifications
+- Slack notifications
+- Real-time updates
+- Attachment support
+- Comment edit/delete/threading
+- Advanced notification preferences and bulk actions
+- Analytics, SLA, webhook, and automation features
 
 ## Stack
 
@@ -13,20 +33,8 @@
 ## Prerequisites
 
 - Node.js 22 or newer
-- Corepack-enabled `pnpm@10.7.0`
+- Corepack-enabled `pnpm@10.19.0`
 - Docker Desktop or a compatible Docker Engine
-
-## Features
-
-- Email/password sign-in with database-backed sessions
-- Protected dashboard with live project and task metrics
-- Project CRUD with search and status filters
-- Task CRUD with project assignment, priority, due date, search, and status transitions
-- Loading, empty, validation-error, and success states across the main workflow
-- Seed data with:
-  - populated demo records
-  - an intentionally empty project (`OPS-EMPTY`)
-  - demo credentials for quick review
 
 ## Quick start
 
@@ -39,21 +47,13 @@ cp .env.example .env
 2. Install dependencies.
 
 ```bash
-pnpm install
+corepack pnpm install
 ```
 
-`package.json` explicitly marks `unrs-resolver` as an intentionally ignored dependency build script. Its `postinstall` only checks optional native resolver bindings used by ESLint import resolution, and the measured `lint`, `test`, and `build` paths in this repo succeed without approving that script. If `pnpm install` ever reports a different ignored package, treat that as a new audit item rather than approving all scripts blindly.
+Expected result:
 
-The repo also explicitly allows the required install scripts for `@prisma/client`, `@prisma/engines`, `esbuild`, `prisma`, and `sharp`, so a fresh `pnpm install` runs those hooks automatically and does not require a manual `pnpm approve-builds` step.
-
-On a fresh install, `@prisma/client` may still print its generic "please install Prisma CLI" postinstall hint. That message is expected here because the package hook runs before the repo's explicit `pnpm exec prisma generate` step; the repo already includes `prisma` as a dev dependency.
-
-If a worktree was installed before this build-script policy existed, `pnpm install` can keep reporting the old ignored state even though the current config is correct. Recovery command:
-
-```bash
-pnpm rebuild @prisma/client @prisma/engines esbuild prisma sharp
-pnpm install
-```
+- No ignored build-scripts warning on a fresh install
+- If an older M2 checkout still shows the previous warning after the toolchain upgrade, run `corepack pnpm rebuild` once and rerun `corepack pnpm install`
 
 3. Start PostgreSQL.
 
@@ -64,51 +64,41 @@ docker compose up -d
 4. Generate Prisma Client and apply migrations.
 
 ```bash
-pnpm exec prisma generate
-pnpm exec prisma migrate deploy || pnpm exec prisma migrate dev
+corepack pnpm exec prisma generate
+corepack pnpm exec prisma migrate deploy || corepack pnpm exec prisma migrate dev
 ```
 
-5. Seed demo data.
+5. Seed the v0.2.0 demo workspace.
 
 ```bash
-pnpm db:seed
+corepack pnpm db:seed
 ```
 
 6. Start the app.
 
 ```bash
-pnpm dev
+corepack pnpm dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000).
 
-## One-command local start
-
-After `.env` exists, you can start the full local stack with:
-
-```bash
-pnpm dev:stack
-```
-
-This brings up PostgreSQL, runs Prisma generate, applies migrations, seeds demo data, and starts Next.js.
-
 ## Demo accounts
 
+- Admin: `admin@ops-tracker.local` / `ChangeMe123!`
+- Operator: `operator@ops-tracker.local` / `ChangeMe123!`
 - Reviewer: `reviewer@ops-tracker.local` / `ChangeMe123!`
-- Coordinator: `coordinator@ops-tracker.local` / `ChangeMe123!`
 
-## Five-minute demo flow
+## Five-minute v0.2.0 demo
 
-1. Sign in with the reviewer account.
-2. Open `Projects`.
-3. Submit an invalid project once to see validation errors.
-4. Create a new project with a unique code such as `OPS-501`.
-5. Open the new project and create a task.
-6. Open the task detail page, update the title, and move the status to `In progress`.
-7. Open `Tasks`, search for the updated title, and confirm the refreshed result.
-8. Return to `Projects`, search for `OPS-EMPTY`, open `Documentation refresh`, and confirm the empty state.
-
-In local development, the login page also shows the seeded reviewer credentials. That credential hint is hidden automatically in production builds.
+1. Sign in as the admin account.
+2. Open `Dashboard` and `Workspace` to verify the saved views and membership roster.
+3. Create a project and a task with an owner, reviewer, and due date.
+4. Sign in as the operator, open `My Tasks`, start work, add a comment, mention the reviewer, and request review.
+5. Sign in as the reviewer, open `Inbox`, verify unread notifications, mark them read, then open `Needs Review`.
+6. Open the task detail, inspect the comment and timeline, and send `Changes requested`.
+7. Sign in as the operator, confirm the inbox update, add another comment with a mention, and request review again.
+8. Sign in as the reviewer, open the inbox item back to the task, inspect the updated timeline, and approve the task.
+9. Sign in as the operator, confirm the approval notification in `Inbox`, then verify `Overdue` and `Unassigned` still surface seeded risk items.
 
 ## Environment variables
 
@@ -121,59 +111,47 @@ Required values are documented in `.env.example`:
 - `OPS_TRACKER_DEMO_PASSWORD`
 - `OPS_TRACKER_SECONDARY_EMAIL`
 - `OPS_TRACKER_SECONDARY_PASSWORD`
+- `OPS_TRACKER_TERTIARY_EMAIL`
+- `OPS_TRACKER_TERTIARY_PASSWORD`
 
 ## Validation commands
 
-Run these commands serially. Do not run `pnpm build` and `pnpm test:e2e` in parallel, because both start Next.js processes that contend for the same `.next` workspace.
+Run these commands serially:
+
+- Do not overlap `corepack pnpm test:e2e` and `corepack pnpm build` in the same working tree; both rely on `.next` artifacts.
+- `corepack pnpm test:e2e` is intentionally single-worker because the seeded M2 flow mutates shared workspace state and should mirror the serial GitHub validation path.
 
 ```bash
-pnpm install
+corepack pnpm install
 docker compose up -d
-pnpm exec prisma generate
-pnpm exec prisma migrate deploy || pnpm exec prisma migrate dev
-pnpm db:seed
-pnpm lint
-pnpm typecheck
-pnpm test
-pnpm test:e2e
-pnpm build
+corepack pnpm exec prisma generate
+corepack pnpm exec prisma migrate deploy || corepack pnpm exec prisma migrate dev
+corepack pnpm db:seed
+corepack pnpm lint
+corepack pnpm typecheck
+corepack pnpm test
+corepack pnpm test:e2e
+corepack pnpm build
 ```
 
 ## E2E prerequisites
 
-`pnpm test:e2e` assumes all of the following are already true:
+`corepack pnpm test:e2e` assumes:
 
 - PostgreSQL is running on `127.0.0.1:5434`
 - `.env` exists and matches `.env.example`
-- `pnpm exec prisma generate` has completed
-- `pnpm exec prisma migrate deploy || pnpm exec prisma migrate dev` has completed
-- `pnpm db:seed` has completed
+- Prisma generate and migrate already completed
+- `corepack pnpm db:seed` already completed
 
-The Playwright config starts its own Next.js dev server on port `3100`, so keep it serial with `pnpm build`.
+Playwright starts its own Next.js dev server on port `3100`.
+- The Playwright base URL and dev server both use `127.0.0.1:3100` to avoid local hostname variance during closeout validation.
 
 ## CI
 
-GitHub Actions runs the serial validation path in [.github/workflows/ci.yml](/Users/franny/Documents/New%20project%2010/.github/workflows/ci.yml):
+GitHub Actions runs the same serial validation path in `.github/workflows/ci.yml`.
 
-- core validation job: install, Prisma generate, migrate, seed, lint, typecheck, unit test, build
-- e2e job: the same DB setup plus Chromium install and `pnpm test:e2e`
-
-Static audit completed for the current repo state:
-
-- `actions/setup-node` pins the runner to Node 22 and caches the pnpm store
-- `pnpm/action-setup` pins `pnpm` to `10.7.0`
-- PostgreSQL is provided as a GitHub Actions service on `127.0.0.1:5434`
-- `.env` is copied from `.env.example`, so no GitHub secrets are required for this local-review workflow
-- Prisma generate, migrate, seed, validate, and e2e steps follow the same order as the README
-- Playwright installs Chromium explicitly and starts the app through its own `webServer` config, so no separate app boot step is missing
-- `build` and `test:e2e` are separated into different sequential jobs, matching the serial execution constraint
-
-GitHub-hosted runner execution is not bundled into local setup. To observe the workflow remotely, this project must be committed into a connected GitHub repository and pushed so GitHub Actions can run the `validate` and `e2e` jobs on `ubuntu-latest`.
-
-## Tests
-
-- `pnpm test`: unit tests for validation and label mapping
-- `pnpm test:e2e`: login, validation error, project create, task create, task update, status transition, search, and empty state
+- Triggers: `main`, `pull_request`, and `codex/**` branch pushes
+- Release-ready status requires an observed successful `ci` run on the `codex/m2-closeout` branch before merge and tag
 
 ## API surface
 

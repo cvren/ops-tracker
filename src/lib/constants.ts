@@ -1,8 +1,11 @@
 import {
+  BlockedCategory,
   ProjectStatus,
   TaskPriority,
-  TaskStatus
+  TaskStatus,
+  WorkspaceRole
 } from "@prisma/client";
+import type { ActivityEventType } from "@prisma/client";
 
 export const projectStatusOptions = [
   { value: ProjectStatus.ACTIVE, label: "Active" },
@@ -18,6 +21,8 @@ export const projectStatusLabels = Object.fromEntries(
 export const taskStatusOptions = [
   { value: TaskStatus.BACKLOG, label: "Backlog" },
   { value: TaskStatus.IN_PROGRESS, label: "In progress" },
+  { value: TaskStatus.NEEDS_REVIEW, label: "Needs review" },
+  { value: TaskStatus.CHANGES_REQUESTED, label: "Changes requested" },
   { value: TaskStatus.BLOCKED, label: "Blocked" },
   { value: TaskStatus.DONE, label: "Done" }
 ] as const;
@@ -36,6 +41,57 @@ export const taskPriorityLabels = Object.fromEntries(
   taskPriorityOptions.map((option) => [option.value, option.label])
 ) as Record<TaskPriority, string>;
 
+export const workspaceRoleOptions = [
+  { value: WorkspaceRole.ADMIN, label: "Admin" },
+  { value: WorkspaceRole.MEMBER, label: "Member" },
+  { value: WorkspaceRole.VIEWER, label: "Viewer" }
+] as const;
+
+export const workspaceRoleLabels = Object.fromEntries(
+  workspaceRoleOptions.map((option) => [option.value, option.label])
+) as Record<WorkspaceRole, string>;
+
+export const blockedCategoryOptions = [
+  { value: BlockedCategory.DEPENDENCY, label: "Dependency" },
+  { value: BlockedCategory.EXTERNAL, label: "External" },
+  { value: BlockedCategory.DECISION, label: "Decision" },
+  { value: BlockedCategory.CAPACITY, label: "Capacity" },
+  { value: BlockedCategory.OTHER, label: "Other" }
+] as const;
+
+export const blockedCategoryLabels = Object.fromEntries(
+  blockedCategoryOptions.map((option) => [option.value, option.label])
+) as Record<BlockedCategory, string>;
+
+export const taskViewOptions = [
+  {
+    value: "my-tasks",
+    label: "My Tasks",
+    description: "Assigned to me and not done yet."
+  },
+  {
+    value: "needs-review",
+    label: "Needs Review",
+    description: "Waiting on my review."
+  },
+  {
+    value: "overdue",
+    label: "Overdue",
+    description: "Past due and still open."
+  },
+  {
+    value: "unassigned",
+    label: "Unassigned",
+    description: "Open work without an owner."
+  }
+] as const;
+
+export type TaskView = (typeof taskViewOptions)[number]["value"];
+
+export const taskViewLabels = Object.fromEntries(
+  taskViewOptions.map((option) => [option.value, option.label])
+) as Record<TaskView, string>;
+
 export const projectStatusClasses: Record<ProjectStatus, string> = {
   ACTIVE: "bg-emerald-100 text-emerald-900",
   ON_HOLD: "bg-amber-100 text-amber-900",
@@ -46,6 +102,8 @@ export const projectStatusClasses: Record<ProjectStatus, string> = {
 export const taskStatusClasses: Record<TaskStatus, string> = {
   BACKLOG: "bg-stone-200 text-stone-800",
   IN_PROGRESS: "bg-sky-100 text-sky-900",
+  NEEDS_REVIEW: "bg-violet-100 text-violet-900",
+  CHANGES_REQUESTED: "bg-amber-100 text-amber-900",
   BLOCKED: "bg-rose-100 text-rose-900",
   DONE: "bg-emerald-100 text-emerald-900"
 };
@@ -54,4 +112,31 @@ export const taskPriorityClasses: Record<TaskPriority, string> = {
   LOW: "bg-stone-200 text-stone-800",
   MEDIUM: "bg-amber-100 text-amber-900",
   HIGH: "bg-rose-100 text-rose-900"
+};
+
+export const workspaceRoleClasses: Record<WorkspaceRole, string> = {
+  ADMIN: "bg-sky-100 text-sky-900",
+  MEMBER: "bg-emerald-100 text-emerald-900",
+  VIEWER: "bg-stone-200 text-stone-800"
+};
+
+export const activityEventLabels: Record<ActivityEventType, string> = {
+  PROJECT_CREATED: "Project created",
+  PROJECT_UPDATED: "Project updated",
+  TASK_CREATED: "Task created",
+  TASK_UPDATED: "Task updated",
+  TASK_ASSIGNEE_CHANGED: "Owner changed",
+  TASK_REVIEWER_CHANGED: "Reviewer changed",
+  TASK_DUE_DATE_CHANGED: "Due date changed",
+  TASK_STATUS_CHANGED: "Status changed",
+  TASK_BLOCKED: "Task blocked",
+  TASK_UNBLOCKED: "Task unblocked",
+  TASK_REVIEW_REQUESTED: "Review requested",
+  TASK_REVIEW_APPROVED: "Review approved",
+  TASK_CHANGES_REQUESTED: "Changes requested",
+  COMMENT_CREATED: "Comment added",
+  COMMENT_MENTIONED: "Mentioned teammate",
+  MEMBERSHIP_ADDED: "Member added",
+  MEMBERSHIP_ROLE_CHANGED: "Role changed",
+  MEMBERSHIP_REMOVED: "Member removed"
 };

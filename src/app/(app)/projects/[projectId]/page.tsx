@@ -19,7 +19,9 @@ import { Panel } from "@/components/ui/panel";
 import { Select } from "@/components/ui/select";
 import { getAssignableUsers, getProjectById, listTasks } from "@/lib/data";
 import { taskStatusOptions } from "@/lib/constants";
+import { getDueDateBoundary } from "@/lib/task-views";
 import { formatDate, formatDateTime } from "@/lib/utils";
+import { getCurrentWorkspaceContext } from "@/lib/workspace";
 
 type ProjectDetailPageProps = {
   params: Promise<{ projectId: string }>;
@@ -41,7 +43,8 @@ export default async function ProjectDetailPage({
     ? (statusParam as TaskStatus)
     : undefined;
 
-  const [project, users, tasks] = await Promise.all([
+  const [{ membership }, project, users, tasks] = await Promise.all([
+    getCurrentWorkspaceContext(),
     getProjectById(projectId),
     getAssignableUsers(),
     listTasks({
@@ -54,6 +57,8 @@ export default async function ProjectDetailPage({
   if (!project) {
     notFound();
   }
+
+  const overdueBoundary = getDueDateBoundary();
 
   return (
     <div className="space-y-8">
@@ -96,35 +101,53 @@ export default async function ProjectDetailPage({
 
       <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
         <div className="space-y-6">
-          <ProjectEditForm project={project} />
-          <Panel className="space-y-4 border-rose-200 bg-white/85">
-            <div className="space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-signal">
-                Project controls
+          {membership.role === "VIEWER" ? (
+            <Panel className="space-y-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-accent">
+                Read-only access
               </p>
               <h2 className="text-2xl font-semibold text-ink">
-                Delete project
+                Project edits are disabled
               </h2>
               <p className="text-sm leading-6 text-ink/70">
-                This removes the project and its linked tasks from the local
-                workspace.
+                Viewers can inspect ownership, deadlines, and handoff state, but
+                only members and admins can change project or task data.
               </p>
-            </div>
-            <ConfirmActionForm
-              action={deleteProjectAction}
-              hiddenInputs={{ projectId: project.id }}
-              message={`Delete project ${project.code}? This also deletes linked tasks.`}
-              label="Delete project"
-            />
-          </Panel>
+            </Panel>
+          ) : (
+            <>
+              <ProjectEditForm project={project} />
+              <Panel className="space-y-4 border-rose-200 bg-white/85">
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold uppercase tracking-[0.28em] text-signal">
+                    Project controls
+                  </p>
+                  <h2 className="text-2xl font-semibold text-ink">
+                    Delete project
+                  </h2>
+                  <p className="text-sm leading-6 text-ink/70">
+                    This removes the project and its linked tasks from the workspace.
+                  </p>
+                </div>
+                <ConfirmActionForm
+                  action={deleteProjectAction}
+                  hiddenInputs={{ projectId: project.id }}
+                  message={`Delete project ${project.code}? This also deletes linked tasks.`}
+                  label="Delete project"
+                />
+              </Panel>
+            </>
+          )}
         </div>
 
         <div className="space-y-6">
-          <TaskCreateForm
-            defaultProjectId={project.id}
-            projects={[project]}
-            users={users}
-          />
+          {membership.role === "VIEWER" ? null : (
+            <TaskCreateForm
+              defaultProjectId={project.id}
+              projects={[project]}
+              users={users}
+            />
+          )}
           <Panel className="space-y-5">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div>
@@ -158,41 +181,54 @@ export default async function ProjectDetailPage({
             {tasks.length === 0 ? (
               <EmptyState
                 title="No tasks for this project"
-                description="The seeded demo includes a project with no tasks so reviewers can validate the empty state here."
+                description="The seeded demo includes a project with no tasks so the empty-state path is still easy to verify."
               />
             ) : (
               <div className="space-y-3">
-                {tasks.map((task) => (
-                  <Link
-                    key={task.id}
-                    href={`/tasks/${task.id}` as Route}
-                    className="block"
-                  >
-                    <div className="rounded-[1.75rem] border border-black/10 bg-canvas/65 p-4 transition hover:-translate-y-0.5 hover:bg-white">
-                      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                        <div className="space-y-3">
-                          <div className="flex flex-wrap gap-2">
-                            <TaskStatusBadge status={task.status} />
-                            <TaskPriorityBadge priority={task.priority} />
+                {tasks.map((task) => {
+                  const isOverdue =
+                    task.dueDate !== null &&
+                    task.status !== "DONE" &&
+                    task.dueDate < overdueBoundary;
+
+                  return (
+                    <Link
+                      key={task.id}
+                      href={`/tasks/${task.id}` as Route}
+                      className="block"
+                    >
+                      <div className="rounded-[1.75rem] border border-black/10 bg-canvas/65 p-4 transition hover:-translate-y-0.5 hover:bg-white">
+                        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                          <div className="space-y-3">
+                            <div className="flex flex-wrap gap-2">
+                              <TaskStatusBadge status={task.status} />
+                              <TaskPriorityBadge priority={task.priority} />
+                              {isOverdue ? (
+                                <span className="rounded-full bg-rose-100 px-3 py-1 text-xs font-semibold text-rose-900">
+                                  Overdue
+                                </span>
+                              ) : null}
+                            </div>
+                            <div>
+                              <h3 className="text-lg font-semibold text-ink">
+                                {task.title}
+                              </h3>
+                              <p className="mt-1 text-sm leading-6 text-ink/70">
+                                {task.description}
+                              </p>
+                            </div>
                           </div>
-                          <div>
-                            <h3 className="text-lg font-semibold text-ink">
-                              {task.title}
-                            </h3>
-                            <p className="mt-1 text-sm leading-6 text-ink/70">
-                              {task.description}
-                            </p>
+                          <div className="space-y-2 text-sm text-ink/65">
+                            <p>Owner: {task.assignee?.name ?? "Unassigned"}</p>
+                            <p>Reviewer: {task.reviewer?.name ?? "None"}</p>
+                            <p>Due: {formatDate(task.dueDate)}</p>
+                            <p>Updated: {formatDateTime(task.updatedAt)}</p>
                           </div>
-                        </div>
-                        <div className="space-y-2 text-sm text-ink/65">
-                          <p>Assignee: {task.assignee?.name ?? "Unassigned"}</p>
-                          <p>Due: {formatDate(task.dueDate)}</p>
-                          <p>Updated: {formatDateTime(task.updatedAt)}</p>
                         </div>
                       </div>
-                    </div>
-                  </Link>
-                ))}
+                    </Link>
+                  );
+                })}
               </div>
             )}
           </Panel>

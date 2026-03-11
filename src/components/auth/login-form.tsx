@@ -24,7 +24,7 @@ export function LoginForm() {
           id="email"
           name="email"
           type="email"
-          placeholder="reviewer@ops-tracker.local"
+          placeholder="admin@ops-tracker.local"
           autoComplete="email"
           required
         />

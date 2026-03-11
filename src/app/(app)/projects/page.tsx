@@ -13,6 +13,7 @@ import { Select } from "@/components/ui/select";
 import { projectStatusOptions } from "@/lib/constants";
 import { listProjects } from "@/lib/data";
 import { formatDateTime } from "@/lib/utils";
+import { getCurrentWorkspaceContext } from "@/lib/workspace";
 
 type ProjectsPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
@@ -27,10 +28,13 @@ export default async function ProjectsPage({
   const status = Object.values(ProjectStatus).includes(rawStatus as ProjectStatus)
     ? (rawStatus as ProjectStatus)
     : undefined;
-  const projects = await listProjects({
-    query,
-    status
-  });
+  const [{ membership }, projects] = await Promise.all([
+    getCurrentWorkspaceContext(),
+    listProjects({
+      query,
+      status
+    })
+  ]);
 
   return (
     <div className="space-y-8">
@@ -105,7 +109,22 @@ export default async function ProjectsPage({
           )}
         </div>
 
-        <ProjectCreateForm />
+        {membership.role === "VIEWER" ? (
+          <Panel className="space-y-3">
+            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-accent">
+              Read-only access
+            </p>
+            <h2 className="text-2xl font-semibold text-ink">
+              Viewer role detected
+            </h2>
+            <p className="text-sm leading-6 text-ink/70">
+              Viewers can browse projects and tasks, but project creation and
+              edits are reserved for members and admins.
+            </p>
+          </Panel>
+        ) : (
+          <ProjectCreateForm />
+        )}
       </div>
     </div>
   );
