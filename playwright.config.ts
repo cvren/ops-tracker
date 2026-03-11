@@ -13,7 +13,7 @@ export default defineConfig({
     trace: "on-first-retry"
   },
   webServer: {
-    command: "corepack pnpm exec next dev --hostname 127.0.0.1 --port 3100",
+    command: "./node_modules/.bin/next dev --hostname 127.0.0.1 --port 3100",
     url: "http://127.0.0.1:3100",
     reuseExistingServer: false,
     timeout: 180000

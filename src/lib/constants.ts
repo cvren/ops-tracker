@@ -1,6 +1,7 @@
 import {
   BlockedCategory,
   ProjectStatus,
+  RecurringCadence,
   TaskPriority,
   TaskStatus,
   WorkspaceRole
@@ -40,6 +41,16 @@ export const taskPriorityOptions = [
 export const taskPriorityLabels = Object.fromEntries(
   taskPriorityOptions.map((option) => [option.value, option.label])
 ) as Record<TaskPriority, string>;
+
+export const recurringCadenceOptions = [
+  { value: RecurringCadence.DAILY, label: "Daily" },
+  { value: RecurringCadence.WEEKLY, label: "Weekly" },
+  { value: RecurringCadence.MONTHLY, label: "Monthly" }
+] as const;
+
+export const recurringCadenceLabels = Object.fromEntries(
+  recurringCadenceOptions.map((option) => [option.value, option.label])
+) as Record<RecurringCadence, string>;
 
 export const workspaceRoleOptions = [
   { value: WorkspaceRole.ADMIN, label: "Admin" },
@@ -86,10 +97,43 @@ export const taskViewOptions = [
   }
 ] as const;
 
-export type TaskView = (typeof taskViewOptions)[number]["value"];
+export const managerTaskViewOptions = [
+  {
+    value: "review-queue",
+    label: "Review Queue",
+    description: "All tasks waiting on review."
+  },
+  {
+    value: "blocked-aging",
+    label: "Blocked Aging",
+    description: "Blocked tasks sorted by their oldest stall."
+  },
+  {
+    value: "due-this-week",
+    label: "Due This Week",
+    description: "Open work due today or in the next seven days."
+  },
+  {
+    value: "high-risk",
+    label: "High-Risk Queue",
+    description: "Overdue, blocked, stale review, or unassigned risk."
+  },
+  {
+    value: "workload",
+    label: "Workload by Member",
+    description: "Open ownership and review load grouped by teammate."
+  }
+] as const;
+
+export const allTaskViewOptions = [
+  ...taskViewOptions,
+  ...managerTaskViewOptions
+] as const;
+
+export type TaskView = (typeof allTaskViewOptions)[number]["value"];
 
 export const taskViewLabels = Object.fromEntries(
-  taskViewOptions.map((option) => [option.value, option.label])
+  allTaskViewOptions.map((option) => [option.value, option.label])
 ) as Record<TaskView, string>;
 
 export const projectStatusClasses: Record<ProjectStatus, string> = {
@@ -125,6 +169,7 @@ export const activityEventLabels: Record<ActivityEventType, string> = {
   PROJECT_UPDATED: "Project updated",
   TASK_CREATED: "Task created",
   TASK_UPDATED: "Task updated",
+  TASK_BULK_UPDATED: "Bulk updated",
   TASK_ASSIGNEE_CHANGED: "Owner changed",
   TASK_REVIEWER_CHANGED: "Reviewer changed",
   TASK_DUE_DATE_CHANGED: "Due date changed",
@@ -134,6 +179,12 @@ export const activityEventLabels: Record<ActivityEventType, string> = {
   TASK_REVIEW_REQUESTED: "Review requested",
   TASK_REVIEW_APPROVED: "Review approved",
   TASK_CHANGES_REQUESTED: "Changes requested",
+  TASK_CREATED_FROM_TEMPLATE: "Created from template",
+  TASK_TEMPLATE_CREATED: "Template created",
+  TASK_TEMPLATE_UPDATED: "Template updated",
+  RECURRING_SCHEDULE_CREATED: "Recurring schedule created",
+  RECURRING_SCHEDULE_UPDATED: "Recurring schedule updated",
+  RECURRING_SCHEDULE_EXECUTED: "Recurring schedule executed",
   COMMENT_CREATED: "Comment added",
   COMMENT_MENTIONED: "Mentioned teammate",
   MEMBERSHIP_ADDED: "Member added",

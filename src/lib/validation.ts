@@ -1,6 +1,7 @@
 import {
   BlockedCategory,
   ProjectStatus,
+  RecurringCadence,
   TaskPriority,
   TaskStatus,
   WorkspaceRole
@@ -17,6 +18,31 @@ const dateInputSchema = z
     (value) => value === "" || /^\d{4}-\d{2}-\d{2}$/.test(value),
     "Use a valid due date."
   );
+
+const integerInputSchema = z
+  .string()
+  .optional()
+  .transform((value) => value?.trim() ?? "")
+  .refine((value) => value === "" || /^\d+$/.test(value), "Use a whole number.");
+
+const bulkSelectionSchema = z.array(z.string().cuid()).min(1).max(50);
+
+const bulkStatusSchema = z.union([
+  z.literal(""),
+  z.literal(TaskStatus.BACKLOG),
+  z.literal(TaskStatus.IN_PROGRESS)
+]);
+
+const bulkBlockedStateSchema = z.union([
+  z.literal("keep"),
+  z.literal("block"),
+  z.literal("unblock")
+]);
+
+const templateStatusSchema = z.union([
+  z.literal(TaskStatus.BACKLOG),
+  z.literal(TaskStatus.IN_PROGRESS)
+]);
 
 export const loginSchema = z.object({
   email: z.string().email("Use a valid email address."),
@@ -106,6 +132,115 @@ export const commentSchema = z.object({
   mentionedUserIds: z.array(z.string().cuid()).max(10)
 });
 
+export const bulkTaskUpdateSchema = z
+  .object({
+    taskIds: bulkSelectionSchema,
+    assigneeId: optionalIdSchema,
+    reviewerId: optionalIdSchema,
+    dueDate: dateInputSchema,
+    status: bulkStatusSchema,
+    priority: z.union([z.nativeEnum(TaskPriority), z.literal("")]),
+    blockedState: bulkBlockedStateSchema,
+    blockedReason: z
+      .string()
+      .optional()
+      .transform((value) => value?.trim() ?? ""),
+    blockedCategory: z
+      .union([z.nativeEnum(BlockedCategory), z.literal("")])
+      .optional()
+      .transform((value) => value ?? "")
+  })
+  .superRefine((data, context) => {
+    const hasChange =
+      data.assigneeId !== "" ||
+      data.reviewerId !== "" ||
+      data.dueDate !== "" ||
+      data.status !== "" ||
+      data.priority !== "" ||
+      data.blockedState !== "keep";
+
+    if (!hasChange) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["taskIds"],
+        message: "Choose at least one bulk change to apply."
+      });
+    }
+
+    if (data.assigneeId && data.reviewerId && data.assigneeId === data.reviewerId) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["reviewerId"],
+        message: "Reviewer must be different from the assignee."
+      });
+    }
+
+    if (data.blockedState === "block" && data.blockedReason === "") {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["blockedReason"],
+        message: "Blocked bulk updates require a reason."
+      });
+    }
+  });
+
+export const taskTemplateSchema = z
+  .object({
+    name: z
+      .string()
+      .trim()
+      .min(2, "Template name must be at least 2 characters.")
+      .max(80, "Template name must be 80 characters or fewer."),
+    title: z
+      .string()
+      .trim()
+      .min(3, "Task title must be at least 3 characters.")
+      .max(120, "Task title must be 120 characters or fewer."),
+    description: z
+      .string()
+      .trim()
+      .min(10, "Description must be at least 10 characters.")
+      .max(1000, "Description must be 1000 characters or fewer."),
+    defaultAssigneeId: optionalIdSchema,
+    defaultReviewerId: optionalIdSchema,
+    defaultDueOffsetDays: integerInputSchema,
+    defaultPriority: z.nativeEnum(TaskPriority),
+    defaultStatus: templateStatusSchema
+  })
+  .superRefine((data, context) => {
+    if (
+      data.defaultAssigneeId &&
+      data.defaultReviewerId &&
+      data.defaultAssigneeId === data.defaultReviewerId
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["defaultReviewerId"],
+        message: "Reviewer must be different from the assignee."
+      });
+    }
+  });
+
+export const createTaskFromTemplateSchema = z.object({
+  templateId: z.string().cuid("Choose a valid template."),
+  projectId: z.string().cuid("Choose a valid project.")
+});
+
+export const recurringScheduleSchema = z.object({
+  templateId: z.string().cuid("Choose a valid template."),
+  projectId: z.string().cuid("Choose a valid project."),
+  cadence: z.nativeEnum(RecurringCadence),
+  interval: integerInputSchema.refine(
+    (value) => value !== "" && Number(value) >= 1 && Number(value) <= 90,
+    "Interval must be between 1 and 90."
+  ),
+  nextRunAt: dateInputSchema.refine(
+    (value) => value !== "",
+    "Choose the next run date."
+  ),
+  isActive: z.boolean()
+});
+
 export const createMembershipSchema = z.object({
   userId: z.string().cuid("Choose a valid user."),
   role: z.nativeEnum(WorkspaceRole)
@@ -171,6 +306,53 @@ export function parseCommentFormData(formData: FormData) {
   });
 }
 
+export function parseBulkTaskUpdateFormData(formData: FormData) {
+  return bulkTaskUpdateSchema.safeParse({
+    taskIds: [...new Set(getStringArrayValues(formData, "taskIds"))],
+    assigneeId: getStringValue(formData, "assigneeId"),
+    reviewerId: getStringValue(formData, "reviewerId"),
+    dueDate: getStringValue(formData, "dueDate"),
+    status: getStringValue(formData, "status"),
+    priority: getStringValue(formData, "priority"),
+    blockedState: getStringValue(formData, "blockedState") || "keep",
+    blockedReason: getStringValue(formData, "blockedReason"),
+    blockedCategory: getStringValue(formData, "blockedCategory")
+  });
+}
+
+export function parseTaskTemplateFormData(formData: FormData) {
+  return taskTemplateSchema.safeParse({
+    name: getStringValue(formData, "name"),
+    title: getStringValue(formData, "title"),
+    description: getStringValue(formData, "description"),
+    defaultAssigneeId: getStringValue(formData, "defaultAssigneeId"),
+    defaultReviewerId: getStringValue(formData, "defaultReviewerId"),
+    defaultDueOffsetDays: getStringValue(formData, "defaultDueOffsetDays"),
+    defaultPriority: getStringValue(formData, "defaultPriority"),
+    defaultStatus: getStringValue(formData, "defaultStatus")
+  });
+}
+
+export function parseCreateTaskFromTemplateFormData(formData: FormData) {
+  return createTaskFromTemplateSchema.safeParse({
+    templateId: getStringValue(formData, "templateId"),
+    projectId: getStringValue(formData, "projectId")
+  });
+}
+
+export function parseRecurringScheduleFormData(formData: FormData) {
+  return recurringScheduleSchema.safeParse({
+    templateId: getStringValue(formData, "templateId"),
+    projectId: getStringValue(formData, "projectId"),
+    cadence: getStringValue(formData, "cadence"),
+    interval: getStringValue(formData, "interval"),
+    nextRunAt: getStringValue(formData, "nextRunAt"),
+    isActive:
+      getStringValue(formData, "isActive") === "on" ||
+      getStringValue(formData, "isActive") === "true"
+  });
+}
+
 export function flattenFieldErrors(error: z.ZodError) {
   return error.flatten().fieldErrors;
 }
@@ -186,6 +368,14 @@ export function normalizeDueDate(value: string) {
 export function normalizeOptionalText(value: string) {
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : null;
+}
+
+export function normalizeOptionalInteger(value: string) {
+  if (!value) {
+    return null;
+  }
+
+  return Number(value);
 }
 
 export function normalizeOptionalEnum(value: ""): null;

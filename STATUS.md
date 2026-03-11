@@ -2,111 +2,86 @@
 
 ## Current state
 
-- `v0.2.0` is release-ready on branch `codex/m2-closeout`
-- The release branch is validated locally and has an observed successful GitHub-hosted `ci` run on the current pushed release-candidate head
-- `v0.2.0` closeout includes a hardened Playwright path: single-worker execution, durable state assertions, and a fixed `127.0.0.1` dev-server target
-- Task detail now stores and displays comments from real data
-- Structured mentions are stored in `CommentMention` and drive notification fan-out
-- `ActivityEvent` now covers comment mention plus blocked/unblocked states and powers task timelines
-- Inbox is reachable from nav, shows unread/read state, and links back to the relevant task
-- M1 ownership, review, and saved-view flows remain intact
-- Task transition feedback now survives refresh, and the e2e path waits on durable task-detail state instead of transient timing
-- Release finalization is complete: install-warning disposition, serial-run closeout, GitHub-hosted observation, and M3 handoff docs are all fixed in-repo
+- `ops-tracker` has shipped the full `v0.3.0` feature boundary locally
+- The branch is in release-ready closeout state; no new product scope was added during reconciliation
+- Current branch name: `codex/v0.3-m3`
+- Current branch tracks `origin/codex/v0.3-m3`
 
-## M2 gap audit
+## Release-ready reconciliation audit
 
-- `[done]` Comments: task detail has a real comment composer and list, `Comment` persists task/author/body/timestamps, empty comments are rejected, and viewers stay read-only
-- `[done]` Mentions: structured multi-select saves durable `CommentMention` rows and suppresses self-notifications
-- `[done]` Activity events: shared helpers create task, assignment, reviewer, due date, status, blocked/unblocked, review, comment, and mention events with actor/timestamp/summary payloads
-- `[done]` Inbox: `Notification` references `ActivityEvent`, dedupes by `(userId, activityEventId)`, supports unread/read, shows a nav badge, and links back to relevant task anchors
-- `[done]` Timeline: task detail renders actor, event kind, summary, and timestamp so comment/review/status flow is readable from the UI
-- `[done]` Seed, tests, docs, and release notes: seed includes comments, mentions, review events, and read/unread notifications; unit and Playwright cover the M2 happy path
-- `[done]` GitHub-hosted runner observation: workflow `ci` completed with `success` on `codex/m2-closeout` for the current pushed release-candidate head during final closeout
-- `[done]` Install warning disposition: no ignored build-scripts warning remains on `corepack pnpm install` after pinning `pnpm@10.19.0`, moving the allow/ignore lists into `pnpm-workspace.yaml`, and running `corepack pnpm rebuild` once in this upgraded checkout
-- `[done]` Serial-run hardening: docs and CI both enforce the local `test:e2e` then `build` order, and branch pushes under `codex/**` trigger the same hosted validation path
-- `[done]` Playwright hardening: the M2 e2e flow now runs with one worker, uses durable state instead of transient toast timing, and keeps the local dev-server path fixed at `127.0.0.1:3100`
-- `[done]` Release handoff: `docs/handoffs/v0.2.0-to-m3.md` defines the shipped boundary, known limits, and recommended M3 order without adding new scope
+- `[done]` `package.json` is on version `0.3.0`
+- `[done]` Local validation truth has been measured from the current repository state
+- `[done]` The shipped M3 boundary is present in code: dashboard drill-down, manager bulk actions, templates, recurring schedules, and manual generation
+- `[done]` Repo docs are normalized from milestone-implementation wording to `v0.3.0` release-ready wording
+- `[done]` Current branch-head GitHub-hosted `ci` has been observed as success for both `validate` and `e2e`
 
 ## Next step
 
-- Human release steps only:
-- Merge `codex/m2-closeout` into `main`
-- Create and push tag `v0.2.0` from the merged `main` commit
-- Publish release notes from `RELEASE_NOTES_v0.2.0.md`
-- Start M3 from `docs/handoffs/v0.2.0-to-m3.md`
+- Open or update the release PR, merge `codex/v0.3-m3` into `main`, tag the merge commit as `v0.3.0`, and publish the GitHub Release from `RELEASE_NOTES_v0.3.0.md`
 
 ## Decisions
 
-- `SPEC.md` is now scoped to M2 completion instead of M1
-- Membership, not legacy `User.role`, remains the effective authorization boundary
-- Single-workspace UX remains the only supported collaboration model in `v0.2.0`
-- Notification fan-out stays centralized around shared activity helpers instead of adding a generic queue or event bus
-- Structured mention selection is used instead of free-text parsing
-- Minimal code changes are acceptable during closure only when a shipped gap is reproduced; this pass used that rule for task transition feedback persistence
-- `pnpm.onlyBuiltDependencies` is now enforced from `pnpm-workspace.yaml` under `pnpm@10.19.0`, which removes the previous install warning on a clean install
-- The GitHub Actions workflow now runs on `main`, `pull_request`, and `codex/**` branch pushes so closeout branches can be observed without opening a PR first
+- No new scope is allowed during this closeout; only reconciliation, validation, and release-readiness work is in bounds
+- Sandbox-specific caveats stay in `STATUS.md` unless they represent a real repository defect in a normal developer environment
+- Admin-only manager-console permissions remain part of the shipped `v0.3.0` boundary and are not widened here
+- Recurring execution remains manual in `v0.3.0`; M4 may build on it, but this closeout does not
 
-## Known issues
+## Environment notes
 
-- No open release blockers remain for `v0.2.0`.
+- In this sandbox, `corepack pnpm db:seed` was equivalent to `set -a; source .env; set +a; node --import tsx prisma/seed.ts` because `tsx` IPC pipes are restricted
+- In this sandbox, `corepack pnpm install` emitted an npm registry metadata warning because outbound network resolution is restricted
+- These notes are environment-specific and are not treated as `v0.3.0` repository defects
 
 ## Exact run commands
 
-Validation commands completed for `v0.2.0 Milestone 2`:
+- `env COREPACK_HOME='/Users/franny/.codex/worktrees/0bbc/New project 10/.local/corepack' corepack pnpm install`
+  - passed, with an npm registry metadata warning before the install completed
+- `docker compose up -d`
+  - passed
+- `env COREPACK_HOME='/Users/franny/.codex/worktrees/0bbc/New project 10/.local/corepack' corepack pnpm exec prisma generate`
+  - passed
+- `env COREPACK_HOME='/Users/franny/.codex/worktrees/0bbc/New project 10/.local/corepack' corepack pnpm exec prisma migrate deploy`
+  - passed after fixing `20260311201500_v0_3_0_repeat_work_authorship` and rerunning `prisma migrate resolve --rolled-back 20260311201500_v0_3_0_repeat_work_authorship`
+- `set -a; source .env; set +a; node --import tsx prisma/seed.ts`
+  - passed
+- `env COREPACK_HOME='/Users/franny/.codex/worktrees/0bbc/New project 10/.local/corepack' corepack pnpm lint`
+  - passed
+- `env COREPACK_HOME='/Users/franny/.codex/worktrees/0bbc/New project 10/.local/corepack' corepack pnpm typecheck`
+  - passed
+- `env COREPACK_HOME='/Users/franny/.codex/worktrees/0bbc/New project 10/.local/corepack' corepack pnpm test`
+  - passed, `12` files / `65` tests
+- `env COREPACK_HOME=/Users/franny/.codex/worktrees/0bbc/New\ project\ 10/.local/corepack corepack pnpm test:e2e`
+  - passed, `3` Playwright specs
+- `env COREPACK_HOME='/Users/franny/.codex/worktrees/0bbc/New project 10/.local/corepack' corepack pnpm build`
+  - passed
+- GitHub Actions `ci` on `origin/codex/v0.3-m3`
+  - observed success for `validate` and `e2e` on the current pushed branch head
 
-```bash
-corepack pnpm install
-docker compose up -d
-corepack pnpm exec prisma generate
-corepack pnpm exec prisma migrate deploy
-corepack pnpm db:seed
-corepack pnpm lint
-corepack pnpm typecheck
-corepack pnpm test
-corepack pnpm test:e2e
-corepack pnpm build
-```
+## Release handoff
 
-Results:
+1. Open or refresh the PR from `codex/v0.3-m3` into `main`
+2. Merge the approved PR into `main`
+3. Tag the merge commit: `git switch main && git pull && git tag v0.3.0 <merge-sha> && git push origin v0.3.0`
+4. Publish the GitHub Release from tag `v0.3.0` using `RELEASE_NOTES_v0.3.0.md`
+5. Start M4 only after the merge, tag, and release publish are complete
 
-- `corepack pnpm install`: passed, no ignored build-scripts warning
-- `corepack pnpm rebuild`: executed once after moving the build-script policy into `pnpm-workspace.yaml` so this upgraded checkout no longer carries stale ignored-build state
-- `docker compose up -d`: passed
-- `corepack pnpm exec prisma generate`: passed
-- `corepack pnpm exec prisma migrate deploy`: passed, no pending migrations
-- `corepack pnpm db:seed`: passed
-- `corepack pnpm lint`: passed
-- `corepack pnpm typecheck`: passed
-- `corepack pnpm test`: passed, 7 files / 34 tests
-- `corepack pnpm test:e2e`: passed, 1 Playwright spec
-- `corepack pnpm exec playwright test --repeat-each=3`: passed with `workers: 1`, confirming the hardened M2 flow stays stable when repeated sequentially
-- `corepack pnpm build`: passed when run serially after the rest of the validation path
-- GitHub-hosted runner:
-  - workflow: `ci`
-  - branch: `codex/m2-closeout`
-  - jobs:
-    - `validate`: `success`
-    - `e2e`: `success`
-  - latest observed release-ready result: `success`
+## v0.3.0 demo
 
-## Demo target for v0.2.0
+1. Sign in as `admin@ops-tracker.local / ChangeMe123!`
+2. Review dashboard risk cards and drill into the manager queues
+3. Bulk-triage unassigned, overdue, or blocked work from `/tasks`
+4. Open `/templates`
+5. Create a template, generate a one-off task, create a recurring schedule, and click `Generate now`
+6. Open the generated task and confirm the activity timeline entries
 
-1. Sign in as the admin user.
-2. Open `Dashboard` and `Workspace` to verify saved views and the membership roster.
-3. Create a project and a task with owner, reviewer, and due date.
-4. Sign in as the operator, open `My Tasks`, start work, add a comment, mention the reviewer, and request review.
-5. Sign in as the reviewer, open `Inbox`, verify unread notifications, mark them read, and open `Needs Review`.
-6. Open the task detail, inspect the comment and timeline, then return `Changes requested`.
-7. Sign in as the operator, confirm the inbox update, add another comment with a mention, and request review again.
-8. Sign in as the reviewer, open the inbox item back to the task, inspect the updated timeline, and approve the task.
-9. Sign in as the operator, confirm the approval notification in `Inbox`, then verify `Overdue` and `Unassigned` still surface seeded risk items.
+## Deferred items for M4
 
-## Deferred items for M3
-
-- Email notifications
-- Slack notifications
-- Real-time updates
-- Attachment support
-- Comment edit/delete/threading
-- Advanced notification preferences and bulk actions
-- Analytics, SLA, webhook, and automation features
+- Background cron execution
+- Queue or worker infrastructure
+- Business-day and holiday due-date logic
+- RRULE or advanced recurrence expressions
+- Cross-workspace templates
+- Template versioning
+- Advanced execution history UI
+- Notification fan-out for recurring execution
+- Member-facing repeat-work permissions beyond admins

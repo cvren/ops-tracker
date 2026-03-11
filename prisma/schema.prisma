@@ -35,6 +35,12 @@ enum TaskPriority {
   HIGH
 }
 
+enum RecurringCadence {
+  DAILY
+  WEEKLY
+  MONTHLY
+}
+
 enum BlockedCategory {
   DEPENDENCY
   EXTERNAL
@@ -48,6 +54,7 @@ enum ActivityEventType {
   PROJECT_UPDATED
   TASK_CREATED
   TASK_UPDATED
+  TASK_BULK_UPDATED
   TASK_ASSIGNEE_CHANGED
   TASK_REVIEWER_CHANGED
   TASK_DUE_DATE_CHANGED
@@ -57,6 +64,12 @@ enum ActivityEventType {
   TASK_REVIEW_REQUESTED
   TASK_REVIEW_APPROVED
   TASK_CHANGES_REQUESTED
+  TASK_CREATED_FROM_TEMPLATE
+  TASK_TEMPLATE_CREATED
+  TASK_TEMPLATE_UPDATED
+  RECURRING_SCHEDULE_CREATED
+  RECURRING_SCHEDULE_UPDATED
+  RECURRING_SCHEDULE_EXECUTED
   COMMENT_CREATED
   COMMENT_MENTIONED
   MEMBERSHIP_ADDED
@@ -83,6 +96,12 @@ model User {
   updatedTasks          Task[]          @relation("TaskUpdater")
   reviewRequestedTasks  Task[]          @relation("TaskReviewRequester")
   reviewedTasks         Task[]          @relation("TaskReviewedBy")
+  createdTaskTemplates  TaskTemplate[]  @relation("TaskTemplateCreatedBy")
+  updatedTaskTemplates  TaskTemplate[]  @relation("TaskTemplateUpdatedBy")
+  createdRecurringSchedules RecurringSchedule[] @relation("RecurringScheduleCreatedBy")
+  updatedRecurringSchedules RecurringSchedule[] @relation("RecurringScheduleUpdatedBy")
+  defaultAssigneeTemplates TaskTemplate[] @relation("TaskTemplateDefaultAssignee")
+  defaultReviewerTemplates TaskTemplate[] @relation("TaskTemplateDefaultReviewer")
   comments              Comment[]       @relation("CommentAuthor")
   mentionedComments     CommentMention[]
   activityEvents        ActivityEvent[] @relation("ActivityActor")
@@ -110,6 +129,8 @@ model Workspace {
   updatedAt      DateTime        @updatedAt
   memberships    Membership[]
   projects       Project[]
+  taskTemplates  TaskTemplate[]
+  recurringSchedules RecurringSchedule[]
   activityEvents ActivityEvent[]
 }
 
@@ -144,9 +165,74 @@ model Project {
   owner           User            @relation("ProjectOwner", fields: [ownerId], references: [id], onDelete: Restrict)
   updatedBy       User            @relation("ProjectUpdater", fields: [updatedById], references: [id], onDelete: Restrict)
   tasks           Task[]
+  recurringSchedules RecurringSchedule[]
   activityEvents  ActivityEvent[]
 
   @@index([workspaceId, status, name])
+}
+
+model TaskTemplate {
+  id                   String       @id @default(cuid())
+  workspaceId          String
+  name                 String
+  title                String
+  description          String
+  defaultAssigneeId    String?
+  defaultReviewerId    String?
+  defaultDueOffsetDays Int?
+  defaultPriority      TaskPriority @default(MEDIUM)
+  defaultStatus        TaskStatus   @default(BACKLOG)
+  createdById          String
+  updatedById          String
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
+  workspace            Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  defaultAssignee      User?        @relation("TaskTemplateDefaultAssignee", fields: [defaultAssigneeId], references: [id], onDelete: SetNull)
+  defaultReviewer      User?        @relation("TaskTemplateDefaultReviewer", fields: [defaultReviewerId], references: [id], onDelete: SetNull)
+  createdBy            User         @relation("TaskTemplateCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy            User         @relation("TaskTemplateUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+  recurringSchedules   RecurringSchedule[]
+
+  @@unique([workspaceId, name])
+  @@index([workspaceId, updatedAt])
+}
+
+model RecurringSchedule {
+  id         String            @id @default(cuid())
+  templateId String
+  workspaceId String
+  projectId  String
+  cadence    RecurringCadence
+  interval   Int               @default(1)
+  nextRunAt  DateTime
+  lastRunAt  DateTime?
+  isActive   Boolean           @default(true)
+  createdById String
+  updatedById String
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+  template   TaskTemplate      @relation(fields: [templateId], references: [id], onDelete: Restrict)
+  workspace  Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  project    Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdBy  User              @relation("RecurringScheduleCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy  User              @relation("RecurringScheduleUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+  executions RecurringExecution[]
+
+  @@index([workspaceId, isActive, nextRunAt])
+  @@index([projectId, isActive])
+}
+
+model RecurringExecution {
+  id            String            @id @default(cuid())
+  scheduleId    String
+  scheduledFor  DateTime
+  executedAt    DateTime          @default(now())
+  createdTaskId String?
+  schedule      RecurringSchedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  createdTask   Task?             @relation(fields: [createdTaskId], references: [id], onDelete: SetNull)
+
+  @@unique([scheduleId, scheduledFor])
+  @@index([executedAt])
 }
 
 model Task {
@@ -180,6 +266,7 @@ model Task {
   reviewedBy          User?            @relation("TaskReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
   comments            Comment[]
   activityEvents      ActivityEvent[]
+  recurringExecutions RecurringExecution[]
 
   @@index([projectId, status])
   @@index([assigneeId, status])

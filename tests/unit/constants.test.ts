@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   activityEventLabels,
   projectStatusLabels,
+  recurringCadenceLabels,
   taskPriorityLabels,
   taskStatusLabels,
   taskViewLabels,
@@ -23,7 +24,10 @@ describe("label maps", () => {
 
   it("exposes view and role labels", () => {
     expect(taskViewLabels["my-tasks"]).toBe("My Tasks");
+    expect(taskViewLabels["review-queue"]).toBe("Review Queue");
     expect(workspaceRoleLabels.ADMIN).toBe("Admin");
     expect(activityEventLabels.COMMENT_MENTIONED).toBe("Mentioned teammate");
+    expect(activityEventLabels.TASK_BULK_UPDATED).toBe("Bulk updated");
+    expect(recurringCadenceLabels.WEEKLY).toBe("Weekly");
   });
 });

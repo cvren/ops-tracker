@@ -2,20 +2,41 @@
 
 import Link from "next/link";
 import type { Route } from "next";
+import type { WorkspaceRole } from "@prisma/client";
 import { usePathname } from "next/navigation";
 
 import { cn } from "@/lib/utils";
 
-const links = [
-  { href: "/dashboard", label: "Dashboard" },
-  { href: "/projects", label: "Projects" },
-  { href: "/tasks", label: "Tasks" },
-  { href: "/inbox", label: "Inbox" },
-  { href: "/workspace", label: "Workspace" }
-] satisfies ReadonlyArray<{ href: Route; label: string }>;
+function getLinks(role: WorkspaceRole) {
+  if (role === "ADMIN") {
+    return [
+      { href: "/dashboard", label: "Dashboard" },
+      { href: "/projects", label: "Projects" },
+      { href: "/tasks", label: "Tasks" },
+      { href: "/templates", label: "Templates" },
+      { href: "/inbox", label: "Inbox" },
+      { href: "/workspace", label: "Workspace" }
+    ] satisfies ReadonlyArray<{ href: Route; label: string }>;
+  }
 
-export function NavLinks({ unreadCount = 0 }: { unreadCount?: number }) {
+  return [
+    { href: "/dashboard", label: "Dashboard" },
+    { href: "/projects", label: "Projects" },
+    { href: "/tasks", label: "Tasks" },
+    { href: "/inbox", label: "Inbox" },
+    { href: "/workspace", label: "Workspace" }
+  ] satisfies ReadonlyArray<{ href: Route; label: string }>;
+}
+
+export function NavLinks({
+  role,
+  unreadCount = 0
+}: {
+  role: WorkspaceRole;
+  unreadCount?: number;
+}) {
   const pathname = usePathname();
+  const links = getLinks(role);
 
   return (
     <nav className="flex flex-wrap gap-2">

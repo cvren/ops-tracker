@@ -1,25 +1,29 @@
 import Link from "next/link";
 import type { Route } from "next";
-import { TaskPriority, TaskStatus } from "@prisma/client";
+import {
+  TaskPriority,
+  TaskStatus,
+  WorkspaceRole
+} from "@prisma/client";
 
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
-import {
-  TaskPriorityBadge,
-  TaskStatusBadge
-} from "@/components/status-badges";
+import { TaskListClient } from "@/components/tasks/task-list-client";
+import { Panel } from "@/components/ui/panel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Panel } from "@/components/ui/panel";
 import { Select } from "@/components/ui/select";
 import {
+  managerTaskViewOptions,
   taskPriorityOptions,
   taskStatusOptions,
+  taskViewLabels,
   taskViewOptions
 } from "@/lib/constants";
-import { listProjects, listTasks } from "@/lib/data";
-import { getDueDateBoundary, parseTaskView } from "@/lib/task-views";
-import { formatDate, formatDateTime } from "@/lib/utils";
+import { getAssignableUsers, listProjects, listTasks } from "@/lib/data";
+import { getManagerWorkloadData } from "@/lib/manager-data";
+import { parseTaskView } from "@/lib/task-views";
+import { getCurrentWorkspaceContext } from "@/lib/workspace";
 
 type TasksPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
@@ -33,6 +37,10 @@ export default async function TasksPage({ searchParams }: TasksPageProps) {
     typeof params.priority === "string" ? params.priority : "";
   const rawProjectId =
     typeof params.projectId === "string" ? params.projectId : "";
+  const rawAssigneeId =
+    typeof params.assigneeId === "string" ? params.assigneeId : "";
+  const rawReviewerId =
+    typeof params.reviewerId === "string" ? params.reviewerId : "";
   const view = parseTaskView(
     typeof params.view === "string" ? params.view : undefined
   );
@@ -46,52 +54,123 @@ export default async function TasksPage({ searchParams }: TasksPageProps) {
     ? (rawPriority as TaskPriority)
     : undefined;
 
-  const [tasks, projects] = await Promise.all([
-    listTasks({
-      query,
-      status,
-      priority,
-      projectId: rawProjectId || undefined,
-      view
-    }),
-    listProjects()
+  const context = await getCurrentWorkspaceContext();
+  const isAdmin = context.membership.role === WorkspaceRole.ADMIN;
+  const bulkEnabledViews = new Set([
+    "unassigned",
+    "overdue",
+    "review-queue",
+    "blocked-aging",
+    "due-this-week",
+    "high-risk"
+  ]);
+  const bulkEnabled = Boolean(isAdmin && view && bulkEnabledViews.has(view));
+  const bulkViewLabel = bulkEnabled && view ? taskViewLabels[view] : null;
+
+  if (!isAdmin && view && view !== "my-tasks" && view !== "needs-review" && view !== "overdue" && view !== "unassigned") {
+    return (
+      <div className="space-y-8">
+        <PageHeader
+          eyebrow="Tasks"
+          title="Work the queue with ownership and review context."
+          description="Manager views are admin-only. Personal queues and task detail remain available for members and viewers."
+        />
+        <Panel className="space-y-3">
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">
+            Manager view locked
+          </p>
+          <h2 className="text-2xl font-semibold text-ink">
+            This queue is available to workspace admins only.
+          </h2>
+          <p className="text-sm text-ink/70">
+            Use your personal saved views, or ask an admin to clear the queue
+            from the manager console.
+          </p>
+        </Panel>
+      </div>
+    );
+  }
+
+  const [projects, users, workload, tasks] = await Promise.all([
+    listProjects(),
+    getAssignableUsers(),
+    isAdmin && view === "workload" ? getManagerWorkloadData() : Promise.resolve([]),
+    view === "workload"
+      ? Promise.resolve([])
+      : listTasks({
+          query,
+          status,
+          priority,
+          projectId: rawProjectId || undefined,
+          assigneeId: rawAssigneeId || undefined,
+          reviewerId: rawReviewerId || undefined,
+          view
+        })
   ]);
 
-  const overdueBoundary = getDueDateBoundary();
+  const headerTitle =
+    view && view in taskViewLabels
+      ? taskViewLabels[view]
+      : "Work the queue with ownership and review context.";
+  const headerDescription = bulkEnabled
+    ? "Select the risky tasks on this queue and clear them in one pass without opening each detail page."
+    : isAdmin
+      ? "Filter the shared task list by queue, owner, reviewer, due date, and project so the next risky pocket of work is obvious."
+      : "Filter the shared task list by saved view, reviewer, owner, deadline, and project so handoffs do not drift into Slack or memory.";
 
   return (
     <div className="space-y-8">
       <PageHeader
         eyebrow="Tasks"
-        title="Work the queue with ownership and review context."
-        description="Filter the shared task list by saved view, reviewer, owner, deadline, and project so handoffs do not drift into Slack or memory."
+        title={headerTitle}
+        description={headerDescription}
+        action={undefined}
       />
 
       <Panel className="space-y-4">
-        <div className="flex flex-wrap gap-2">
-          <Link
-            href="/tasks"
-            className={`rounded-full px-4 py-2 text-sm font-medium transition ${
-              !view ? "bg-ink text-canvas" : "bg-white/70 text-ink hover:bg-white"
-            }`}
-          >
-            All Tasks
-          </Link>
-          {taskViewOptions.map((option) => (
+        <div className="space-y-3">
+          <div className="flex flex-wrap gap-2">
             <Link
-              key={option.value}
-              href={`/tasks?view=${option.value}` as Route}
+              href="/tasks"
               className={`rounded-full px-4 py-2 text-sm font-medium transition ${
-                view === option.value
-                  ? "bg-ink text-canvas"
-                  : "bg-white/70 text-ink hover:bg-white"
+                !view ? "bg-ink text-canvas" : "bg-white/70 text-ink hover:bg-white"
               }`}
             >
-              {option.label}
+              All Tasks
             </Link>
-          ))}
+            {taskViewOptions.map((option) => (
+              <Link
+                key={option.value}
+                href={`/tasks?view=${option.value}` as Route}
+                className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+                  view === option.value
+                    ? "bg-ink text-canvas"
+                    : "bg-white/70 text-ink hover:bg-white"
+                }`}
+              >
+                {option.label}
+              </Link>
+            ))}
+          </div>
+          {isAdmin ? (
+            <div className="flex flex-wrap gap-2">
+              {managerTaskViewOptions.map((option) => (
+                <Link
+                  key={option.value}
+                  href={`/tasks?view=${option.value}` as Route}
+                  className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+                    view === option.value
+                      ? "bg-accent text-canvas"
+                      : "bg-white/70 text-ink hover:bg-white"
+                  }`}
+                >
+                  {option.label}
+                </Link>
+              ))}
+            </div>
+          ) : null}
         </div>
-        <form className="grid gap-4 xl:grid-cols-[1.2fr_190px_190px_240px_auto]">
+        <form className="grid gap-4 xl:grid-cols-[1.2fr_180px_180px_220px_220px_220px_auto]">
           {view ? <input type="hidden" name="view" value={view} /> : null}
           <Input
             name="q"
@@ -122,13 +201,82 @@ export default async function TasksPage({ searchParams }: TasksPageProps) {
               </option>
             ))}
           </Select>
+          <Select name="assigneeId" defaultValue={rawAssigneeId}>
+            <option value="">All owners</option>
+            {users.map((user) => (
+              <option key={user.id} value={user.id}>
+                {user.name}
+              </option>
+            ))}
+          </Select>
+          <Select name="reviewerId" defaultValue={rawReviewerId}>
+            <option value="">All reviewers</option>
+            {users.map((user) => (
+              <option key={user.id} value={user.id}>
+                {user.name}
+              </option>
+            ))}
+          </Select>
           <Button type="submit" fullWidth={false}>
             Apply filters
           </Button>
         </form>
       </Panel>
 
-      {tasks.length === 0 ? (
+      {view === "workload" ? (
+        <Panel className="space-y-5">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">
+                Workload by member
+              </p>
+              <h2 className="mt-2 text-2xl font-semibold text-ink">
+                See who is carrying open work and review load
+              </h2>
+            </div>
+            <Link
+              href="/tasks?view=high-risk"
+              className="text-sm font-semibold text-accent hover:text-ink"
+            >
+              Open high-risk queue
+            </Link>
+          </div>
+          {workload.length === 0 ? (
+            <EmptyState
+              title="No open workload"
+              description="The workspace has no active ownership or review load right now."
+            />
+          ) : (
+            <div className="space-y-3">
+              {workload.map((member) => (
+                <div
+                  key={member.id}
+                  className="rounded-[1.5rem] border border-black/10 bg-canvas/70 px-4 py-4"
+                >
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                    <div>
+                      <p className="text-lg font-semibold text-ink">
+                        {member.name}
+                      </p>
+                      <p className="text-sm text-ink/65">
+                        Open tasks: {member.openCount} · Review queue:{" "}
+                        {member.reviewQueueCount} · Overdue: {member.overdueCount}
+                        {" · "}Blocked: {member.blockedCount}
+                      </p>
+                    </div>
+                    <Link
+                      href={`/tasks?assigneeId=${member.id}` as Route}
+                      className="text-sm font-semibold text-accent hover:text-ink"
+                    >
+                      View assigned tasks
+                    </Link>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </Panel>
+      ) : tasks.length === 0 ? (
         <EmptyState
           title="No matching tasks"
           description="Try a broader filter or create a new task from a project detail page."
@@ -136,60 +284,16 @@ export default async function TasksPage({ searchParams }: TasksPageProps) {
           ctaLabel="Go to projects"
         />
       ) : (
-        <div className="grid gap-4">
-          {tasks.map((task) => {
-            const isOverdue =
-              task.dueDate !== null &&
-              task.status !== "DONE" &&
-              task.dueDate < overdueBoundary;
-
-            return (
-              <Link
-                key={task.id}
-                href={`/tasks/${task.id}` as Route}
-                className="block"
-              >
-                <Panel className="animate-fade-up transition hover:-translate-y-0.5 hover:bg-white/85">
-                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                    <div className="space-y-3">
-                      <div className="flex flex-wrap gap-2">
-                        <TaskStatusBadge status={task.status} />
-                        <TaskPriorityBadge priority={task.priority} />
-                        {isOverdue ? (
-                          <span className="rounded-full bg-rose-100 px-3 py-1 text-xs font-semibold text-rose-900">
-                            Overdue
-                          </span>
-                        ) : null}
-                        {!task.assigneeId && task.status !== "DONE" ? (
-                          <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-900">
-                            Unassigned
-                          </span>
-                        ) : null}
-                      </div>
-                      <div>
-                        <h2 className="text-2xl font-semibold text-ink">
-                          {task.title}
-                        </h2>
-                        <p className="mt-1 text-sm font-medium text-ink/60">
-                          {task.project.code} · {task.project.name}
-                        </p>
-                      </div>
-                      <p className="max-w-3xl text-sm leading-6 text-ink/70">
-                        {task.description}
-                      </p>
-                    </div>
-                    <div className="space-y-2 rounded-[1.5rem] bg-canvas/70 px-4 py-3 text-sm text-ink/70">
-                      <p>Owner: {task.assignee?.name ?? "Unassigned"}</p>
-                      <p>Reviewer: {task.reviewer?.name ?? "None"}</p>
-                      <p>Due: {formatDate(task.dueDate)}</p>
-                      <p>Updated: {formatDateTime(task.updatedAt)}</p>
-                    </div>
-                  </div>
-                </Panel>
-              </Link>
-            );
-          })}
-        </div>
+        <TaskListClient
+          bulkEnabled={bulkEnabled}
+          bulkViewLabel={bulkViewLabel}
+          tasks={tasks}
+          users={users.map((user) => ({
+            id: user.id,
+            name: user.name,
+            email: user.email
+          }))}
+        />
       )}
     </div>
   );
