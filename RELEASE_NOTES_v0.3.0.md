@@ -48,6 +48,7 @@
 - `test`: passed, `12` files / `65` tests
 - `test:e2e`: passed, `3` Playwright specs
 - `build`: passed
+- GitHub Actions `ci` on the current branch head: passed with `validate` and `e2e`
 
 ## Deferred beyond v0.3.0
 

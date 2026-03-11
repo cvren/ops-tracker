@@ -9,11 +9,11 @@
 3. M3.3 repeat-work slice
    - Status: completed
 4. M3 final reconciliation and release-ready closeout
-   - Status: in_progress
+   - Status: completed
    - Acceptance criteria:
      - local validation truth is recorded from the current repository state
      - stale milestone wording and stale counts are removed from repo docs
-     - current branch-head hosted CI is observed as success, or the exact blocker is recorded
+     - current branch-head hosted CI is observed as success
      - release notes and handoff match the shipped `v0.3.0` boundary
 5. M4 next slice
    - Status: pending
@@ -24,12 +24,12 @@
 ## Current cycle
 
 - Scope: `v0.3.0 release-ready closeout`
-- Status: implementation and reconciliation in progress
+- Status: completed on the current branch head
 - Reconciliation checklist:
   - `[done]` shipped M3.1 / M3.2 / M3.3 scope exists in the repository implementation
   - `[done]` local validation truth has been measured for install, db, lint, typecheck, test, e2e, and build
-  - `[stale-doc]` repo docs still describe M3.3 as the active implementation slice instead of release-ready closeout
-  - `[unverified]` current branch-head hosted CI has not yet been observed
+  - `[done]` repo docs now describe `v0.3.0` as release-ready instead of treating M3.3 as the active slice
+  - `[done]` current branch-head hosted CI has been observed as success for `validate` and `e2e`
 
 ## Architecture decisions
 

@@ -1,6 +1,6 @@
 # ops-tracker
 
-`ops-tracker` is at the `v0.3.0` release-candidate stage: the shipped `v0.2.0` collaboration flow plus the full M3 manager console stack.
+`ops-tracker` is release-ready for `v0.3.0`: the shipped `v0.2.0` collaboration flow plus the full M3 manager console stack.
 
 ## Shipped scope in v0.3.0
 

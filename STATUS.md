@@ -3,22 +3,21 @@
 ## Current state
 
 - `ops-tracker` has shipped the full `v0.3.0` feature boundary locally
-- The current task is release-ready reconciliation only; no new product scope is being added
+- The branch is in release-ready closeout state; no new product scope was added during reconciliation
 - Current branch name: `codex/v0.3-m3`
-- Current local HEAD before closeout commit/push: `2dbed119ec971d38ef19704a035963e93969d292`
+- Current branch tracks `origin/codex/v0.3-m3`
 
 ## Release-ready reconciliation audit
 
 - `[done]` `package.json` is on version `0.3.0`
 - `[done]` Local validation truth has been measured from the current repository state
 - `[done]` The shipped M3 boundary is present in code: dashboard drill-down, manager bulk actions, templates, recurring schedules, and manual generation
-- `[partial]` Repo docs still need to be normalized from milestone-implementation wording to release-ready wording
-- `[stale-doc]` Some durable docs still describe `M3.3` as the active phase instead of `v0.3.0` release closeout
-- `[unverified]` Current branch-head GitHub-hosted `ci` has not yet been observed
+- `[done]` Repo docs are normalized from milestone-implementation wording to `v0.3.0` release-ready wording
+- `[done]` Current branch-head GitHub-hosted `ci` has been observed as success for both `validate` and `e2e`
 
 ## Next step
 
-- Normalize the remaining docs, commit the reconciled branch state, push `codex/v0.3-m3`, then observe the hosted `validate` and `e2e` jobs on that pushed head
+- Open or update the release PR, merge `codex/v0.3-m3` into `main`, tag the merge commit as `v0.3.0`, and publish the GitHub Release from `RELEASE_NOTES_v0.3.0.md`
 
 ## Decisions
 
@@ -29,7 +28,6 @@
 
 ## Known issues
 
-- `[unverified]` The local branch has no upstream configured yet, so current-head hosted CI cannot be observed until the reconciled branch state is pushed
 - `[follow-up]` In this sandbox, `corepack pnpm db:seed` is equivalent to `set -a; source .env; set +a; node --import tsx prisma/seed.ts` because `tsx` IPC pipes are restricted
 - `[follow-up]` `corepack pnpm install` completed successfully from the lockfile but emitted an npm registry metadata warning because outbound network resolution is restricted in this sandbox
 
@@ -55,6 +53,8 @@
   - passed, `3` Playwright specs
 - `env COREPACK_HOME='/Users/franny/.codex/worktrees/0bbc/New project 10/.local/corepack' corepack pnpm build`
   - passed
+- GitHub Actions `ci` on `origin/codex/v0.3-m3`
+  - observed success for `validate` and `e2e` on the current pushed branch head
 
 ## v0.3.0 demo
 
