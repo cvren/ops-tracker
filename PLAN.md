@@ -69,7 +69,7 @@
   - `[done]` reconciled README, SPEC, PLAN, STATUS, release notes, contract docs, and the `v0.3.0 -> v0.4.0` handoff to the same release-ready truth
   - `[done]` created the forward handoff at `docs/handoffs/v0.4.0-to-v0.5.0.md`
   - `[done]` reran the Phase 4 validation command set on the release-ready head
-  - `[unverified]` current-head GitHub-hosted `ci` is only complete when `validate` and `e2e` have been observed against the pushed release-ready commit
+  - `[done]` observed GitHub-hosted `ci` on the pushed release-ready branch head with both `validate` and `e2e` succeeding
   - `[warning]` sandbox/tooling noise such as the local Playwright `NO_COLOR` warning is treated as an environment artifact, not a repo defect, and stays out of README instructions
   - `[partial]` `SKIPPED` remains contract-valid and UI-visible, but manager skip action and fresh ledger rows for tick-suppression skips remain intentionally out of `v0.4.0`
 

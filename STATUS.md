@@ -7,7 +7,7 @@
 - `package.json` is now `0.4.0` on the current branch head
 - Local tag `v0.3.0` exists
 - The current repo now implements `ops-tracker v0.4.0 Phase 0–4` locally while the latest shipped release remains `v0.3.0`
-- Current branch state is detached `HEAD` at `9d84ce32e20a786429a23b4148fcbc284dfdd48f`
+- Current release-ready branch is `codex/v0.4.0-phase-4-closeout` tracking `origin/codex/v0.4.0-phase-4-closeout`
 - Canonical contract doc: `docs/contracts/v0.4.0-operating-contract.md`
 - Canonical handoff doc: `docs/handoffs/v0.3.0-to-v0.4.0.md`
 - Forward handoff doc: `docs/handoffs/v0.4.0-to-v0.5.0.md`
@@ -25,7 +25,7 @@
 - Duplicate-safe slot claims are now enforced in the database for `RUNNING`, `SUCCESS`, and `SKIPPED` answers on the same `recurringScheduleId + scheduledFor` slot
 - Fresh-seed scheduled truth before closeout is: `recurring:tick` reports `Due: 2`, `Succeeded: 1`, `Failed: 0`, `Skipped: 1`; the visible scheduled failure is the seeded `Recovery retry drill` ledger row and the skipped slot tells operators to recover it via rerun
 - `SKIPPED` is contract-valid, schema-backed, and UI-visible through seeded history, but current scheduled skip suppression does not create a new ledger row and no manager skip action is exposed
-- GitHub-hosted `ci` must still be observed against the pushed current-head release-ready commit before tag and GitHub Release publication
+- GitHub-hosted `ci` has been observed green on the pushed release-ready branch head with both `validate` and `e2e` succeeding
 
 ## Phase 4 closeout audit
 
@@ -41,9 +41,10 @@
 - `[partial]` `SKIPPED` semantics remain explicitly limited
   - `SKIPPED` is contract-valid and seeded/UI-visible
   - manager skip action and fresh ledger rows for tick-suppression skips remain outside `v0.4.0`
-- `[unverified]` hosted `ci`
-  - current-head GitHub-hosted `ci` still needs direct observation against the pushed release-ready commit
-- `[warning]` current branch state is detached until the release-ready commit is placed on a real branch and pushed
+- `[done]` hosted `ci`
+  - GitHub-hosted `ci` was observed on the pushed release-ready branch head
+  - `validate` succeeded
+  - `e2e` succeeded
 
 ## Locked decisions
 
@@ -63,11 +64,11 @@
 - Fresh-seed `recurring:tick` truth is one new `SYSTEM` success plus one skipped due slot; the scheduled failure used in the demo remains a seeded ledger row until a manager reruns it
 - `SKIPPED` stays part of the contract vocabulary, but current runtime only produces seeded skip rows and tick-summary suppression; it does not expose a manager skip action or create a new skip row for every suppressed tick outcome
 - The release-ready branch head may carry `package.json` version `0.4.0`, but shipped-release claims remain on `v0.3.0` until merge, tag `v0.4.0`, and GitHub Release publication
-- Hosted `ci` must be green on the pushed release-ready head before humans tag and publish `v0.4.0`
+- Hosted `ci` is now a required and observed release gate on the pushed release-ready head before humans tag and publish `v0.4.0`
 
 ## Next step
 
-- Put the release-ready commit on a real `codex/*` branch, push it, observe GitHub-hosted `validate` and `e2e`, then proceed with PR, merge, tag `v0.4.0`, and GitHub Release publication if green
+- Open the PR from `codex/v0.4.0-phase-4-closeout`, merge to `main`, create tag `v0.4.0`, and publish the GitHub Release using `RELEASE_NOTES_v0.4.0.md`
 
 ## Known issues
 
@@ -105,3 +106,11 @@
   - after a fresh seed it reported `Due: 2`, `Succeeded: 1`, `Failed: 0`, `Skipped: 1`
   - `Scheduled inventory digest` produced the new `SYSTEM` success row
   - `Recovery retry drill` was skipped because the seed already includes a failed execution for that same slot
+
+## GitHub-hosted ci
+
+- Workflow: `ci`
+- Branch: `codex/v0.4.0-phase-4-closeout`
+- Hosted jobs observed green:
+  - `validate`
+  - `e2e`

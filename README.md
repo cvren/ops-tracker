@@ -35,6 +35,7 @@ See `docs/contracts/v0.4.0-operating-contract.md` for the `v0.4.0` contract base
 - Fresh-seed scheduled truth is: `recurring:tick` creates one new `SYSTEM` success for `Scheduled inventory digest`, reports one skipped due slot for `Recovery retry drill`, and leaves the seeded failed row visible for rerun
 - `SKIPPED` remains part of the contract and seeded UI history, but the current runtime does not expose a manager skip action and tick suppression does not create a fresh skip ledger row
 - Current release-ready validation covers install, migrations, seed, lint, typecheck, unit tests, Playwright e2e, build, and `recurring:tick`
+- GitHub-hosted `ci` has been observed green on the release-ready branch head with both `validate` and `e2e` succeeding
 
 ## Quick start
 
@@ -91,6 +92,7 @@ corepack pnpm recurring:tick
 ## Release closeout
 
 - Current branch-head package version: `0.4.0`
+- Current release branch: `codex/v0.4.0-phase-4-closeout`
 - Latest shipped tag: `v0.3.0`
 - Human release steps still required:
   - open the release PR

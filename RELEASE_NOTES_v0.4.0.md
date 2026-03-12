@@ -62,6 +62,7 @@
   - `Succeeded: 1`
   - `Failed: 0`
   - `Skipped: 1`
+- GitHub-hosted `ci` has been observed green on the release-ready branch head with both `validate` and `e2e` succeeding
 
 ## Human release steps
 

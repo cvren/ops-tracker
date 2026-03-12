@@ -15,6 +15,8 @@
 - Current branch-head `package.json` version is `0.4.0`
 - Local tag `v0.3.0` exists and remains the current shipped release marker
 - The current branch head is a release-ready `v0.4.0` candidate; it is not shipped until PR / merge / tag / GitHub Release complete
+- The release-ready branch is `codex/v0.4.0-phase-4-closeout`
+- GitHub-hosted `ci` has been observed green on the pushed release-ready branch head with both `validate` and `e2e` succeeding
 - The current repo runtime now uses `Membership.role` as the workspace-scoped role source of truth with `ADMIN`, `MANAGER`, `MEMBER`, and `VIEWER`
 - Admins can promote a workspace member to `MANAGER` and demote a manager back to `MEMBER` from the existing workspace membership UI and actions
 - Managers cannot re-delegate manager access, manage workspace membership, or change workspace-root settings
