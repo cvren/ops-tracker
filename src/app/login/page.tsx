@@ -74,8 +74,10 @@ export default async function LoginPage() {
               <p className="font-semibold text-ink">Demo accounts</p>
               <div className="mt-2 space-y-2">
                 <p>Admin: {env.OPS_TRACKER_DEMO_EMAIL}</p>
+                <p>Manager: {env.OPS_TRACKER_MANAGER_EMAIL}</p>
                 <p>Operator: {env.OPS_TRACKER_SECONDARY_EMAIL}</p>
                 <p>Reviewer: {env.OPS_TRACKER_TERTIARY_EMAIL}</p>
+                <p>Viewer: {env.OPS_TRACKER_VIEWER_EMAIL}</p>
                 <p>Password: {env.OPS_TRACKER_DEMO_PASSWORD}</p>
               </div>
             </div>

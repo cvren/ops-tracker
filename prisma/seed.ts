@@ -3,6 +3,8 @@ import {
   BlockedCategory,
   ProjectStatus,
   RecurringCadence,
+  RecurringExecutionStatus,
+  RecurringTriggerSource,
   TaskPriority,
   TaskStatus,
   WorkspaceRole
@@ -42,6 +44,10 @@ async function main() {
   const reviewerPasswordHash = await hashPassword(
     env.OPS_TRACKER_TERTIARY_PASSWORD
   );
+  const managerPasswordHash = await hashPassword(
+    env.OPS_TRACKER_MANAGER_PASSWORD
+  );
+  const viewerPasswordHash = await hashPassword(env.OPS_TRACKER_VIEWER_PASSWORD);
 
   const admin = await prisma.user.upsert({
     where: { email: env.OPS_TRACKER_DEMO_EMAIL.toLowerCase() },
@@ -88,6 +94,36 @@ async function main() {
     }
   });
 
+  const manager = await prisma.user.upsert({
+    where: { email: env.OPS_TRACKER_MANAGER_EMAIL.toLowerCase() },
+    update: {
+      name: "Noa Manager",
+      passwordHash: managerPasswordHash,
+      role: "manager"
+    },
+    create: {
+      name: "Noa Manager",
+      email: env.OPS_TRACKER_MANAGER_EMAIL.toLowerCase(),
+      passwordHash: managerPasswordHash,
+      role: "manager"
+    }
+  });
+
+  const viewer = await prisma.user.upsert({
+    where: { email: env.OPS_TRACKER_VIEWER_EMAIL.toLowerCase() },
+    update: {
+      name: "Vera Viewer",
+      passwordHash: viewerPasswordHash,
+      role: "viewer"
+    },
+    create: {
+      name: "Vera Viewer",
+      email: env.OPS_TRACKER_VIEWER_EMAIL.toLowerCase(),
+      passwordHash: viewerPasswordHash,
+      role: "viewer"
+    }
+  });
+
   const workspace = await prisma.workspace.upsert({
     where: {
       slug: "ops-control-tower"
@@ -108,8 +144,10 @@ async function main() {
 
   for (const [userId, role] of [
     [admin.id, WorkspaceRole.ADMIN],
+    [manager.id, WorkspaceRole.MANAGER],
     [operator.id, WorkspaceRole.MEMBER],
-    [reviewer.id, WorkspaceRole.MEMBER]
+    [reviewer.id, WorkspaceRole.MEMBER],
+    [viewer.id, WorkspaceRole.VIEWER]
   ] as const) {
     await prisma.membership.upsert({
       where: {
@@ -229,6 +267,40 @@ async function main() {
       }
     });
 
+    const recoveryRetryTemplate = await tx.taskTemplate.create({
+      data: {
+        workspaceId: workspace.id,
+        name: "Recovery retry drill",
+        title: "Reissue launch recovery retry packet",
+        description:
+          "Use a stable template for the ledger demo so managers can inspect a failed execution, rerun it, and confirm the recovered task without changing the schedule shape.",
+        defaultAssigneeId: manager.id,
+        defaultReviewerId: reviewer.id,
+        defaultDueOffsetDays: 7,
+        defaultPriority: TaskPriority.HIGH,
+        defaultStatus: TaskStatus.BACKLOG,
+        createdById: admin.id,
+        updatedById: admin.id
+      }
+    });
+
+    const scheduledDigestTemplate = await tx.taskTemplate.create({
+      data: {
+        workspaceId: workspace.id,
+        name: "Scheduled inventory digest",
+        title: "Publish scheduled inventory digest",
+        description:
+          "A release-ready demo template reserved for the scheduled tick so managers can verify the shared pipeline creates a visible SYSTEM execution ledger row.",
+        defaultAssigneeId: manager.id,
+        defaultReviewerId: reviewer.id,
+        defaultDueOffsetDays: 3,
+        defaultPriority: TaskPriority.MEDIUM,
+        defaultStatus: TaskStatus.BACKLOG,
+        createdById: admin.id,
+        updatedById: manager.id
+      }
+    });
+
     const generateNowSchedule = await tx.recurringSchedule.create({
       data: {
         workspaceId: workspace.id,
@@ -240,6 +312,51 @@ async function main() {
         isActive: true,
         createdById: admin.id,
         updatedById: admin.id
+      }
+    });
+
+    const scheduledTickSuccessSchedule = await tx.recurringSchedule.create({
+      data: {
+        workspaceId: workspace.id,
+        projectId: alpha.id,
+        templateId: scheduledDigestTemplate.id,
+        cadence: RecurringCadence.DAILY,
+        interval: 1,
+        nextRunAt: atNoonOffset(-1),
+        lastRunAt: hoursAgo(72),
+        isActive: true,
+        createdById: admin.id,
+        updatedById: manager.id
+      }
+    });
+
+    const rerunFailureSchedule = await tx.recurringSchedule.create({
+      data: {
+        workspaceId: workspace.id,
+        projectId: beta.id,
+        templateId: recoveryRetryTemplate.id,
+        cadence: RecurringCadence.WEEKLY,
+        interval: 1,
+        nextRunAt: atNoonOffset(-1),
+        lastRunAt: hoursAgo(120),
+        isActive: true,
+        createdById: admin.id,
+        updatedById: manager.id
+      }
+    });
+
+    const runningLedgerSchedule = await tx.recurringSchedule.create({
+      data: {
+        workspaceId: workspace.id,
+        projectId: alpha.id,
+        templateId: weeklySweepTemplate.id,
+        cadence: RecurringCadence.DAILY,
+        interval: 1,
+        nextRunAt: atNoonOffset(2),
+        lastRunAt: hoursAgo(144),
+        isActive: true,
+        createdById: admin.id,
+        updatedById: manager.id
       }
     });
 
@@ -469,15 +586,106 @@ async function main() {
       }
     });
 
+    const successfulDigestExecution = await tx.recurringExecution.create({
+      data: {
+        recurringScheduleId: generateNowSchedule.id,
+        workspaceId: workspace.id,
+        status: RecurringExecutionStatus.SUCCESS,
+        scheduledFor: atNoonOffset(-1),
+        startedAt: hoursAgo(30),
+        finishedAt: hoursAgo(30),
+        errorMessage: null,
+        generatedTaskCount: 1,
+        triggeredBy: RecurringTriggerSource.USER,
+        triggeredByUserId: admin.id
+      }
+    });
+
+    const historicalDigestTask = await tx.task.create({
+      data: {
+        projectId: beta.id,
+        recurringExecutionId: successfulDigestExecution.id,
+        ...buildTaskFromTemplateValues(
+          escalationDigestTemplate,
+          hoursAgo(30)
+        ),
+        createdById: admin.id,
+        updatedById: admin.id
+      }
+    });
+
+    const successfulSweepExecution = await tx.recurringExecution.create({
+      data: {
+        recurringScheduleId: pausedSweepSchedule.id,
+        workspaceId: workspace.id,
+        status: RecurringExecutionStatus.SUCCESS,
+        scheduledFor: atNoonOffset(-2),
+        startedAt: hoursAgo(72),
+        finishedAt: hoursAgo(72),
+        errorMessage: null,
+        generatedTaskCount: 1,
+        triggeredBy: RecurringTriggerSource.USER,
+        triggeredByUserId: admin.id
+      }
+    });
+
     const recurringGeneratedTask = await tx.task.create({
       data: {
         projectId: alpha.id,
+        recurringExecutionId: successfulSweepExecution.id,
         ...buildTaskFromTemplateValues(
           weeklySweepTemplate,
           hoursAgo(72)
         ),
         createdById: admin.id,
         updatedById: admin.id
+      }
+    });
+
+    const skippedSweepExecution = await tx.recurringExecution.create({
+      data: {
+        recurringScheduleId: pausedSweepSchedule.id,
+        workspaceId: workspace.id,
+        status: RecurringExecutionStatus.SKIPPED,
+        scheduledFor: atNoonOffset(-1),
+        startedAt: hoursAgo(40),
+        finishedAt: hoursAgo(40),
+        errorMessage:
+          "Skipped during the warehouse freeze window because no publish owner was on shift.",
+        generatedTaskCount: 0,
+        triggeredBy: RecurringTriggerSource.USER,
+        triggeredByUserId: manager.id
+      }
+    });
+
+    const failedRecoveryExecution = await tx.recurringExecution.create({
+      data: {
+        recurringScheduleId: rerunFailureSchedule.id,
+        workspaceId: workspace.id,
+        status: RecurringExecutionStatus.FAILED,
+        scheduledFor: rerunFailureSchedule.nextRunAt,
+        startedAt: hoursAgo(6),
+        finishedAt: hoursAgo(6),
+        errorMessage:
+          "Scheduled retry packet generation failed while the nightly slot was processing.",
+        generatedTaskCount: 0,
+        triggeredBy: RecurringTriggerSource.SYSTEM,
+        triggeredByUserId: null
+      }
+    });
+
+    const runningLedgerExecution = await tx.recurringExecution.create({
+      data: {
+        recurringScheduleId: runningLedgerSchedule.id,
+        workspaceId: workspace.id,
+        status: RecurringExecutionStatus.RUNNING,
+        scheduledFor: runningLedgerSchedule.nextRunAt,
+        startedAt: hoursAgo(2),
+        finishedAt: null,
+        errorMessage: null,
+        generatedTaskCount: 0,
+        triggeredBy: RecurringTriggerSource.USER,
+        triggeredByUserId: manager.id
       }
     });
 
@@ -547,7 +755,12 @@ async function main() {
       payload: { summary: "created project OPS-BETA" }
     });
 
-    for (const template of [weeklySweepTemplate, escalationDigestTemplate]) {
+    for (const template of [
+      weeklySweepTemplate,
+      escalationDigestTemplate,
+      recoveryRetryTemplate,
+      scheduledDigestTemplate
+    ]) {
       await createActivityEvent(tx, {
         workspaceId: workspace.id,
         actorId: admin.id,
@@ -568,6 +781,42 @@ async function main() {
         scheduleId: generateNowSchedule.id,
         templateId: escalationDigestTemplate.id,
         summary: `created recurring schedule for ${escalationDigestTemplate.name}`
+      }
+    });
+
+    await createActivityEvent(tx, {
+      workspaceId: workspace.id,
+      projectId: rerunFailureSchedule.projectId,
+      actorId: admin.id,
+      type: ActivityEventType.RECURRING_SCHEDULE_CREATED,
+      payload: {
+        scheduleId: rerunFailureSchedule.id,
+        templateId: recoveryRetryTemplate.id,
+        summary: `created recurring schedule for ${recoveryRetryTemplate.name}`
+      }
+    });
+
+    await createActivityEvent(tx, {
+      workspaceId: workspace.id,
+      projectId: scheduledTickSuccessSchedule.projectId,
+      actorId: admin.id,
+      type: ActivityEventType.RECURRING_SCHEDULE_CREATED,
+      payload: {
+        scheduleId: scheduledTickSuccessSchedule.id,
+        templateId: scheduledDigestTemplate.id,
+        summary: `created recurring schedule for ${scheduledDigestTemplate.name}`
+      }
+    });
+
+    await createActivityEvent(tx, {
+      workspaceId: workspace.id,
+      projectId: runningLedgerSchedule.projectId,
+      actorId: admin.id,
+      type: ActivityEventType.RECURRING_SCHEDULE_CREATED,
+      payload: {
+        scheduleId: runningLedgerSchedule.id,
+        templateId: weeklySweepTemplate.id,
+        summary: `created recurring schedule for ${weeklySweepTemplate.name}`
       }
     });
 
@@ -596,6 +845,7 @@ async function main() {
       operatorLoadTask,
       adminTask,
       generatedTemplateTask,
+      historicalDigestTask,
       recurringGeneratedTask,
       doneTask
     ]) {
@@ -718,12 +968,75 @@ async function main() {
       }
     });
 
-    const recurringExecution = await tx.recurringExecution.create({
-      data: {
-        scheduleId: pausedSweepSchedule.id,
-        scheduledFor: atNoonOffset(-2),
-        executedAt: hoursAgo(72),
-        createdTaskId: recurringGeneratedTask.id
+    await createActivityEvent(tx, {
+      workspaceId: workspace.id,
+      projectId: historicalDigestTask.projectId,
+      actorId: admin.id,
+      type: ActivityEventType.RECURRING_EXECUTION_STARTED,
+      payload: {
+        executionId: successfulDigestExecution.id,
+        recurringScheduleId: generateNowSchedule.id,
+        templateId: escalationDigestTemplate.id,
+        scheduledFor: atNoonOffset(-1).toISOString(),
+        summary: `started recurring execution for ${escalationDigestTemplate.name}`
+      }
+    });
+
+    await createActivityEvent(tx, {
+      workspaceId: workspace.id,
+      projectId: historicalDigestTask.projectId,
+      taskId: historicalDigestTask.id,
+      actorId: admin.id,
+      type: ActivityEventType.TASK_CREATED_FROM_TEMPLATE,
+      payload: {
+        templateId: escalationDigestTemplate.id,
+        scheduleId: generateNowSchedule.id,
+        executionId: successfulDigestExecution.id,
+        summary: `created "${historicalDigestTask.title}" from template ${escalationDigestTemplate.name}`
+      }
+    });
+
+    await createActivityEvent(tx, {
+      workspaceId: workspace.id,
+      projectId: historicalDigestTask.projectId,
+      taskId: historicalDigestTask.id,
+      actorId: admin.id,
+      type: ActivityEventType.RECURRING_EXECUTION_SUCCEEDED,
+      payload: {
+        executionId: successfulDigestExecution.id,
+        recurringScheduleId: generateNowSchedule.id,
+        templateId: escalationDigestTemplate.id,
+        generatedTaskCount: 1,
+        generatedTaskIds: [historicalDigestTask.id],
+        summary: `completed recurring execution for ${escalationDigestTemplate.name}`
+      }
+    });
+
+    await createActivityEvent(tx, {
+      workspaceId: workspace.id,
+      projectId: historicalDigestTask.projectId,
+      taskId: historicalDigestTask.id,
+      actorId: admin.id,
+      type: ActivityEventType.RECURRING_SCHEDULE_EXECUTED,
+      payload: {
+        executionId: successfulDigestExecution.id,
+        scheduleId: generateNowSchedule.id,
+        templateId: escalationDigestTemplate.id,
+        summary: `generated recurring task from ${escalationDigestTemplate.name}`
+      }
+    });
+
+    await createActivityEvent(tx, {
+      workspaceId: workspace.id,
+      projectId: recurringGeneratedTask.projectId,
+      actorId: admin.id,
+      type: ActivityEventType.RECURRING_EXECUTION_STARTED,
+      payload: {
+        executionId: successfulSweepExecution.id,
+        recurringScheduleId: pausedSweepSchedule.id,
+        templateId: weeklySweepTemplate.id,
+        scheduledFor: atNoonOffset(-2).toISOString(),
+        summary: `started recurring execution for ${weeklySweepTemplate.name}`
       }
     });
 
@@ -736,7 +1049,24 @@ async function main() {
       payload: {
         templateId: weeklySweepTemplate.id,
         scheduleId: pausedSweepSchedule.id,
+        executionId: successfulSweepExecution.id,
         summary: `created "${recurringGeneratedTask.title}" from template ${weeklySweepTemplate.name}`
+      }
+    });
+
+    await createActivityEvent(tx, {
+      workspaceId: workspace.id,
+      projectId: recurringGeneratedTask.projectId,
+      taskId: recurringGeneratedTask.id,
+      actorId: admin.id,
+      type: ActivityEventType.RECURRING_EXECUTION_SUCCEEDED,
+      payload: {
+        executionId: successfulSweepExecution.id,
+        recurringScheduleId: pausedSweepSchedule.id,
+        templateId: weeklySweepTemplate.id,
+        generatedTaskCount: 1,
+        generatedTaskIds: [recurringGeneratedTask.id],
+        summary: `completed recurring execution for ${weeklySweepTemplate.name}`
       }
     });
 
@@ -749,8 +1079,66 @@ async function main() {
       payload: {
         scheduleId: pausedSweepSchedule.id,
         templateId: weeklySweepTemplate.id,
-        executionId: recurringExecution.id,
+        executionId: successfulSweepExecution.id,
         summary: `generated recurring task from ${weeklySweepTemplate.name}`
+      }
+    });
+
+    await createActivityEvent(tx, {
+      workspaceId: workspace.id,
+      projectId: pausedSweepSchedule.projectId,
+      actorId: manager.id,
+      type: ActivityEventType.RECURRING_EXECUTION_SKIPPED,
+      payload: {
+        executionId: skippedSweepExecution.id,
+        recurringScheduleId: pausedSweepSchedule.id,
+        templateId: weeklySweepTemplate.id,
+        errorMessage: skippedSweepExecution.errorMessage,
+        summary: `skipped recurring execution for ${weeklySweepTemplate.name}`
+      }
+    });
+
+    await createActivityEvent(tx, {
+      workspaceId: workspace.id,
+      projectId: rerunFailureSchedule.projectId,
+      actorId: null,
+      type: ActivityEventType.RECURRING_EXECUTION_STARTED,
+      payload: {
+        executionId: failedRecoveryExecution.id,
+        recurringScheduleId: rerunFailureSchedule.id,
+        templateId: recoveryRetryTemplate.id,
+        scheduledFor: rerunFailureSchedule.nextRunAt.toISOString(),
+        triggeredBy: RecurringTriggerSource.SYSTEM,
+        summary: `started recurring execution for ${recoveryRetryTemplate.name}`
+      }
+    });
+
+    await createActivityEvent(tx, {
+      workspaceId: workspace.id,
+      projectId: rerunFailureSchedule.projectId,
+      actorId: null,
+      type: ActivityEventType.RECURRING_EXECUTION_FAILED,
+      payload: {
+        executionId: failedRecoveryExecution.id,
+        recurringScheduleId: rerunFailureSchedule.id,
+        templateId: recoveryRetryTemplate.id,
+        errorMessage: failedRecoveryExecution.errorMessage,
+        triggeredBy: RecurringTriggerSource.SYSTEM,
+        summary: `failed recurring execution for ${recoveryRetryTemplate.name}: ${failedRecoveryExecution.errorMessage}`
+      }
+    });
+
+    await createActivityEvent(tx, {
+      workspaceId: workspace.id,
+      projectId: runningLedgerSchedule.projectId,
+      actorId: manager.id,
+      type: ActivityEventType.RECURRING_EXECUTION_STARTED,
+      payload: {
+        executionId: runningLedgerExecution.id,
+        recurringScheduleId: runningLedgerSchedule.id,
+        templateId: weeklySweepTemplate.id,
+        scheduledFor: runningLedgerSchedule.nextRunAt.toISOString(),
+        summary: `started recurring execution for ${weeklySweepTemplate.name}`
       }
     });
 
@@ -873,10 +1261,14 @@ async function main() {
     `;
   });
 
-  console.log("Seeded ops-tracker v0.3.0 M3.3 repeat-work demo data.");
+  console.log(
+    "Seeded ops-tracker v0.4.0 release-ready demo data."
+  );
   console.log(`Admin login: ${env.OPS_TRACKER_DEMO_EMAIL}`);
+  console.log(`Manager login: ${env.OPS_TRACKER_MANAGER_EMAIL}`);
   console.log(`Operator login: ${env.OPS_TRACKER_SECONDARY_EMAIL}`);
   console.log(`Reviewer login: ${env.OPS_TRACKER_TERTIARY_EMAIL}`);
+  console.log(`Viewer login: ${env.OPS_TRACKER_VIEWER_EMAIL}`);
 }
 
 main()

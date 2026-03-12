@@ -7,6 +7,10 @@ import {
 import { cache } from "react";
 
 import { requireUser } from "@/lib/auth";
+import {
+  getWorkspaceRoleErrorMessage,
+  hasWorkspaceRoleAccess
+} from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
 export type WorkspaceContext = {
@@ -50,17 +54,12 @@ export async function requireWorkspaceRole(
   const context = await getCurrentWorkspaceContext();
 
   if (
-    minimumRole === WorkspaceRole.ADMIN &&
-    context.membership.role !== WorkspaceRole.ADMIN
+    !hasWorkspaceRoleAccess({
+      role: context.membership.role,
+      minimumRole
+    })
   ) {
-    throw new Error("Only workspace admins can perform that action.");
-  }
-
-  if (
-    minimumRole === WorkspaceRole.MEMBER &&
-    context.membership.role === WorkspaceRole.VIEWER
-  ) {
-    throw new Error("Viewer access is read-only.");
+    throw new Error(getWorkspaceRoleErrorMessage(minimumRole));
   }
 
   return context;

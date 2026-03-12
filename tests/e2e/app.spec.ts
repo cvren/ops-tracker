@@ -1,8 +1,11 @@
+import { execFileSync } from "node:child_process";
 import { expect, test, type Page } from "@playwright/test";
 
 const adminEmail = "admin@ops-tracker.local";
+const managerEmail = "manager@ops-tracker.local";
 const operatorEmail = "operator@ops-tracker.local";
 const reviewerEmail = "reviewer@ops-tracker.local";
+const viewerEmail = "viewer@ops-tracker.local";
 const sharedPassword = "ChangeMe123!";
 
 async function signIn(page: Page, email: string) {
@@ -20,6 +23,28 @@ async function signOut(page: Page) {
   await page.getByRole("button", { name: "Sign out" }).click();
   await expect(page).toHaveURL(/\/login$/);
 }
+
+function runRecurringTick() {
+  execFileSync("corepack", ["pnpm", "recurring:tick"], {
+    cwd: process.cwd(),
+    env: process.env,
+    stdio: "pipe"
+  });
+}
+
+function reseedDatabase() {
+  execFileSync("corepack", ["pnpm", "db:seed"], {
+    cwd: process.cwd(),
+    env: process.env,
+    stdio: "pipe"
+  });
+}
+
+test.afterAll(() => {
+  // Restore the canonical demo baseline so post-suite recurring:tick validation
+  // still measures the documented fresh-seed scheduled outcome.
+  reseedDatabase();
+});
 
 test("team can execute the v0.2.0 collaboration flow end-to-end", async ({
   page
@@ -467,5 +492,240 @@ test("admin can turn repeat work into templates and manual recurring generation"
   await page.goto("/templates");
   await expect(
     page.getByText(`generated recurring task from ${templateName}`).first()
+  ).toBeVisible();
+});
+
+test("manager can inspect scheduled execution history and rerun a failed scheduled slot", async ({
+  page
+}) => {
+  test.setTimeout(120000);
+
+  await signIn(page, managerEmail);
+  await page.goto("/templates");
+
+  const recurringSection = page.locator("section").filter({
+    has: page.getByRole("heading", {
+      name: "Issue the next run only when you decide it is time"
+    })
+  });
+
+  const scheduledDigestCard = recurringSection
+    .getByText("Scheduled inventory digest", { exact: true })
+    .locator("xpath=ancestor::div[contains(@class,'rounded-4xl')][1]");
+  await expect(
+    scheduledDigestCard.getByText("No execution history yet.")
+  ).toBeVisible();
+
+  runRecurringTick();
+  await page.goto("/templates");
+
+  const scheduledExecutionRows =
+    recurringSection
+      .getByText("Scheduled inventory digest", { exact: true })
+      .locator("xpath=ancestor::div[contains(@class,'rounded-4xl')][1]")
+      .locator('[id^="execution-"]');
+
+  await expect
+    .poll(async () => scheduledExecutionRows.count())
+    .toBe(1);
+  const latestScheduledExecution = scheduledExecutionRows.first();
+  await expect(
+    latestScheduledExecution.getByText("Success", { exact: true })
+  ).toBeVisible();
+  await expect(
+    latestScheduledExecution.getByText("Triggered by System")
+  ).toBeVisible();
+  await expect(
+    latestScheduledExecution.getByText("Generated tasks: 1")
+  ).toBeVisible();
+  await latestScheduledExecution
+    .getByRole("link", { name: "Publish scheduled inventory digest" })
+    .click();
+
+  await expect(page).toHaveURL(/\/tasks\/.+/);
+  await expect(
+    page.getByRole("heading", { name: "Publish scheduled inventory digest" })
+  ).toBeVisible();
+  await expect(
+    page.getByText("This task came from a recurring execution")
+  ).toBeVisible();
+
+  await page.goto("/templates");
+
+  const recoveryScheduleCard = recurringSection
+    .getByText("Recovery retry drill", { exact: true })
+    .locator("xpath=ancestor::div[contains(@class,'rounded-4xl')][1]");
+  const recoveryExecutionRows =
+    recoveryScheduleCard.locator('[id^="execution-"]');
+
+  await expect
+    .poll(async () => recoveryExecutionRows.count())
+    .toBeGreaterThan(0);
+  const initialRecoveryExecutionCount = await recoveryExecutionRows.count();
+  const failedExecutionRow = recoveryExecutionRows
+    .filter({
+      hasText:
+        "Scheduled retry packet generation failed while the nightly slot was processing."
+    })
+    .first();
+  await expect(
+    failedExecutionRow.getByText("Failed", { exact: true })
+  ).toBeVisible();
+  await expect(
+    failedExecutionRow.getByText("Triggered by System")
+  ).toBeVisible();
+  await expect(
+    failedExecutionRow.getByText(
+      "Scheduled retry packet generation failed while the nightly slot was processing."
+    )
+  ).toBeVisible();
+  await failedExecutionRow
+    .getByRole("button", { name: "Rerun failed slot" })
+    .click();
+
+  await expect
+    .poll(async () => recoveryExecutionRows.count())
+    .toBe(initialRecoveryExecutionCount + 1);
+  const latestRecoveryExecution = recoveryExecutionRows.first();
+  await expect(
+    latestRecoveryExecution.getByText("Success", { exact: true })
+  ).toBeVisible();
+  await expect(
+    latestRecoveryExecution.getByText("Rerun", { exact: true })
+  ).toBeVisible();
+  await latestRecoveryExecution
+    .getByRole("link", { name: "Reissue launch recovery retry packet" })
+    .click();
+
+  await expect(page).toHaveURL(/\/tasks\/.+/);
+  await expect(
+    page.getByRole("heading", { name: "Reissue launch recovery retry packet" })
+  ).toBeVisible();
+  await expect(
+    page.getByText("This task came from a recurring execution")
+  ).toBeVisible();
+});
+
+test("admin can safely delegate the manager console to a manager role", async ({
+  page
+}) => {
+  test.setTimeout(120000);
+
+  await signIn(page, adminEmail);
+
+  await page.goto("/workspace");
+  await expect(
+    page.getByRole("heading", { name: "Manage the people behind the handoff." })
+  ).toBeVisible();
+
+  const operatorRoleSelect = page.getByLabel("Role for Ken Operator");
+  await operatorRoleSelect.selectOption("MANAGER");
+  await operatorRoleSelect
+    .locator("xpath=ancestor::form[1]")
+    .getByRole("button", { name: "Save role" })
+    .click();
+  await expect(page.getByText("Ken Operator is now Manager.")).toBeVisible();
+
+  await page.goto("/dashboard");
+  await expect(
+    page.getByText("granted manager access to Ken Operator").first()
+  ).toBeVisible();
+
+  await signOut(page);
+  await signIn(page, operatorEmail);
+
+  await expect(
+    page.getByRole("heading", {
+      name: "Spot the risk, then clear it before the morning slips."
+    })
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Templates", exact: true })
+  ).toBeVisible();
+
+  await page.goto("/tasks?view=review-queue");
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Review Queue" })
+  ).toBeVisible();
+  await expect(page.getByText("Bulk actions")).toBeVisible();
+  await page
+    .getByLabel("Select Review partner escalation rollback brief")
+    .check();
+  await page
+    .getByLabel("Set owner")
+    .selectOption({ label: "Noa Manager · manager@ops-tracker.local" });
+  await page.getByRole("button", { name: "Apply bulk changes" }).click();
+  await expect(page.getByText("Updated 1 task.")).toBeVisible();
+
+  await page.goto("/templates");
+  await expect(
+    page.getByRole("heading", {
+      name: "Turn repeat work into one-click generation."
+    })
+  ).toBeVisible();
+  const managerRecurringSection = page.locator("section").filter({
+    has: page.getByRole("heading", {
+      name: "Issue the next run only when you decide it is time"
+    })
+  });
+  const storeScheduleCard = managerRecurringSection
+    .getByText("Store escalation digest", { exact: true })
+    .locator("xpath=ancestor::div[contains(@class,'rounded-4xl')][1]");
+  const managerGenerateNowButton = storeScheduleCard.getByRole("button", {
+    name: "Generate now"
+  });
+  await expect(managerGenerateNowButton).toBeVisible();
+  await managerGenerateNowButton.click();
+  await expect(
+    storeScheduleCard.getByText("Generated Publish store escalation digest.")
+  ).toBeVisible();
+
+  await signOut(page);
+  await signIn(page, reviewerEmail);
+
+  await expect(
+    page.getByRole("link", { name: "Templates", exact: true })
+  ).toHaveCount(0);
+  await page.goto("/tasks?view=review-queue");
+  await expect(
+    page.getByRole("heading", { name: "This queue is available to workspace admins and managers." })
+  ).toBeVisible();
+  await page.goto("/templates");
+  await expect(
+    page.getByRole("heading", {
+      name: "Template and recurring controls are manager-console only."
+    })
+  ).toBeVisible();
+
+  await signOut(page);
+  await signIn(page, viewerEmail);
+
+  await expect(
+    page.getByRole("link", { name: "Templates", exact: true })
+  ).toHaveCount(0);
+  await page.goto("/projects");
+  await expect(
+    page.getByRole("heading", { name: "Viewer role detected" })
+  ).toBeVisible();
+  await page.goto("/tasks");
+  await page
+    .getByRole("link", { name: "Validate scanner sync on dock floor" })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "Task edits are disabled" })
+  ).toBeVisible();
+  await expect(
+    page.getByText("Workflow actions are disabled for viewer access.")
+  ).toBeVisible();
+
+  await signOut(page);
+  await signIn(page, managerEmail);
+  await expect(
+    page.getByRole("heading", {
+      name: "Spot the risk, then clear it before the morning slips."
+    })
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Templates", exact: true })
   ).toBeVisible();
 });

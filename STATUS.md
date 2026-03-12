@@ -2,94 +2,106 @@
 
 ## Current state
 
-- `ops-tracker` has shipped the full `v0.3.0` feature boundary locally
-- The branch is in release-ready closeout state; no new product scope was added during reconciliation
-- Current branch name: `codex/v0.3-m3`
-- Current branch tracks `origin/codex/v0.3-m3`
+- Current shipped release remains `v0.3.0`
+- Current branch head is the `ops-tracker v0.4.0 Phase 4 — Release Closeout` release-ready candidate
+- `package.json` is now `0.4.0` on the current branch head
+- Local tag `v0.3.0` exists
+- The current repo now implements `ops-tracker v0.4.0 Phase 0–4` locally while the latest shipped release remains `v0.3.0`
+- Current branch state is detached `HEAD` at `9d84ce32e20a786429a23b4148fcbc284dfdd48f`
+- Canonical contract doc: `docs/contracts/v0.4.0-operating-contract.md`
+- Canonical handoff doc: `docs/handoffs/v0.3.0-to-v0.4.0.md`
+- Forward handoff doc: `docs/handoffs/v0.4.0-to-v0.5.0.md`
+- `Membership.role` is the workspace-scoped role source of truth with `ADMIN`, `MANAGER`, `MEMBER`, and `VIEWER`
+- Workspace membership management and manager-role assignment remain admin-only
+- The manager console is now delegated to `ADMIN` and `MANAGER`
+- Role changes now emit `MEMBERSHIP_ROLE_CHANGED` plus `MANAGER_ROLE_GRANTED` or `MANAGER_ROLE_REVOKED`
+- `RecurringExecution` now matches the `v0.4.0 Phase 0` contract shape and acts as the recurring execution ledger
+- Manual `Generate now`, failed-slot rerun, and scheduled tick now share the same recurring execution pipeline
+- Generated tasks now link back to their source execution through `Task.recurringExecutionId`
+- Templates now expose execution history with `RUNNING`, `SUCCESS`, `FAILED`, and `SKIPPED` rows plus failure detail for both `USER` and `SYSTEM` executions
+- Failed executions can now be rerun by managers, including failures that originated from scheduled `SYSTEM` execution
+- Activity history now includes recurring execution start, success, failure, and rerun events for both manual and scheduled attempts
+- `corepack pnpm recurring:tick` now exists and runs active due schedules through the shared ledger pipeline
+- Duplicate-safe slot claims are now enforced in the database for `RUNNING`, `SUCCESS`, and `SKIPPED` answers on the same `recurringScheduleId + scheduledFor` slot
+- Fresh-seed scheduled truth before closeout is: `recurring:tick` reports `Due: 2`, `Succeeded: 1`, `Failed: 0`, `Skipped: 1`; the visible scheduled failure is the seeded `Recovery retry drill` ledger row and the skipped slot tells operators to recover it via rerun
+- `SKIPPED` is contract-valid, schema-backed, and UI-visible through seeded history, but current scheduled skip suppression does not create a new ledger row and no manager skip action is exposed
+- GitHub-hosted `ci` must still be observed against the pushed current-head release-ready commit before tag and GitHub Release publication
 
-## Release-ready reconciliation audit
+## Phase 4 closeout audit
 
-- `[done]` `package.json` is on version `0.3.0`
-- `[done]` Local validation truth has been measured from the current repository state
-- `[done]` The shipped M3 boundary is present in code: dashboard drill-down, manager bulk actions, templates, recurring schedules, and manual generation
-- `[done]` Repo docs are normalized from milestone-implementation wording to `v0.3.0` release-ready wording
-- `[done]` Current branch-head GitHub-hosted `ci` has been observed as success for both `validate` and `e2e`
+- `[done]` release boundary reconciled
+  - README, SPEC, PLAN, STATUS, release notes, contract docs, and handoffs now describe the same Phase 0–4 release-ready boundary
+- `[done]` package/version boundary reconciled
+  - current branch head now carries `package.json` version `0.4.0`
+  - shipped `v0.3.0` history remains explicit and separate from the release-ready branch head
+- `[done]` validation truth reconciled
+  - the local Phase 4 command set now records one consistent result set for install, migrations, seed, lint, typecheck, unit tests, e2e, build, and scheduled tick
+- `[done]` sandbox and tooling caveats separated
+  - the local Playwright `NO_COLOR` warning is treated as an environment artifact and is kept out of normal README instructions
+- `[partial]` `SKIPPED` semantics remain explicitly limited
+  - `SKIPPED` is contract-valid and seeded/UI-visible
+  - manager skip action and fresh ledger rows for tick-suppression skips remain outside `v0.4.0`
+- `[unverified]` hosted `ci`
+  - current-head GitHub-hosted `ci` still needs direct observation against the pushed release-ready commit
+- `[warning]` current branch state is detached until the release-ready commit is placed on a real branch and pushed
+
+## Locked decisions
+
+- `v0.4.0` theme: `Delegation you can trust, automation you can inspect`
+- The only canonical Phase 0–3 contract path is `docs/contracts/v0.4.0-operating-contract.md`
+- The only canonical `v0.3.0` to `v0.4.0` handoff path is `docs/handoffs/v0.3.0-to-v0.4.0.md`
+- The canonical forward handoff path is `docs/handoffs/v0.4.0-to-v0.5.0.md`
+- The `v0.4.0` role model remains fixed to `admin`, `manager`, `member`, and `viewer`
+- `Membership.role` remains the only effective role source of truth for `v0.4.0`
+- Manager responsibilities stay limited to dashboard / manager queues, bulk actions, template management, recurring management, execution history visibility, and rerun execution
+- Manager exclusions stay fixed to workspace root settings, membership-wide management, manager re-delegation, and system-level scheduler configuration
+- `RecurringExecution` is now the `v0.4.0` source-of-truth ledger for manual execution, scheduled execution, and rerun
+- `Task.recurringExecutionId` remains the durable generated-task linkage for recurring output
+- `recurringScheduleId + scheduledFor` is the slot boundary for duplicate-safe execution
+- Duplicate safety is implemented with a partial unique index that blocks a second `RUNNING`, `SUCCESS`, or `SKIPPED` answer for the same slot while still allowing failed-slot reruns
+- Scheduled failures remain operator-visible and require rerun instead of silent automatic retry
+- Fresh-seed `recurring:tick` truth is one new `SYSTEM` success plus one skipped due slot; the scheduled failure used in the demo remains a seeded ledger row until a manager reruns it
+- `SKIPPED` stays part of the contract vocabulary, but current runtime only produces seeded skip rows and tick-summary suppression; it does not expose a manager skip action or create a new skip row for every suppressed tick outcome
+- The release-ready branch head may carry `package.json` version `0.4.0`, but shipped-release claims remain on `v0.3.0` until merge, tag `v0.4.0`, and GitHub Release publication
+- Hosted `ci` must be green on the pushed release-ready head before humans tag and publish `v0.4.0`
 
 ## Next step
 
-- Open or update the release PR, merge `codex/v0.3-m3` into `main`, tag the merge commit as `v0.3.0`, and publish the GitHub Release from `RELEASE_NOTES_v0.3.0.md`
+- Put the release-ready commit on a real `codex/*` branch, push it, observe GitHub-hosted `validate` and `e2e`, then proceed with PR, merge, tag `v0.4.0`, and GitHub Release publication if green
 
-## Decisions
+## Known issues
 
-- No new scope is allowed during this closeout; only reconciliation, validation, and release-readiness work is in bounds
-- Sandbox-specific caveats stay in `STATUS.md` unless they represent a real repository defect in a normal developer environment
-- Admin-only manager-console permissions remain part of the shipped `v0.3.0` boundary and are not widened here
-- Recurring execution remains manual in `v0.3.0`; M4 may build on it, but this closeout does not
-
-## Environment notes
-
-- In this sandbox, `corepack pnpm db:seed` was equivalent to `set -a; source .env; set +a; node --import tsx prisma/seed.ts` because `tsx` IPC pipes are restricted
-- In this sandbox, `corepack pnpm install` emitted an npm registry metadata warning because outbound network resolution is restricted
-- These notes are environment-specific and are not treated as `v0.3.0` repository defects
+- [follow-up] `/workspace` remains visible as a read-only roster page for non-admin roles; membership mutations stay admin-only
+- [follow-up] skip action and `RECURRING_EXECUTION_SKIPPED` runtime behavior remain optional and are still not exposed as a manager action
+- [follow-up] execution history currently lives in the templates console and task origin panel only; there is still no dedicated cross-schedule execution history screen
+- [warning] Playwright prints `NO_COLOR` warnings under the local desktop shell because `FORCE_COLOR` is set; this is an environment artifact, not a repo defect
 
 ## Exact run commands
 
-- `env COREPACK_HOME='/Users/franny/.codex/worktrees/0bbc/New project 10/.local/corepack' corepack pnpm install`
-  - passed, with an npm registry metadata warning before the install completed
+- `corepack pnpm install`
+  - passed
 - `docker compose up -d`
   - passed
-- `env COREPACK_HOME='/Users/franny/.codex/worktrees/0bbc/New project 10/.local/corepack' corepack pnpm exec prisma generate`
+- `corepack pnpm exec prisma generate`
   - passed
-- `env COREPACK_HOME='/Users/franny/.codex/worktrees/0bbc/New project 10/.local/corepack' corepack pnpm exec prisma migrate deploy`
-  - passed after fixing `20260311201500_v0_3_0_repeat_work_authorship` and rerunning `prisma migrate resolve --rolled-back 20260311201500_v0_3_0_repeat_work_authorship`
-- `set -a; source .env; set +a; node --import tsx prisma/seed.ts`
+- `corepack pnpm exec prisma migrate deploy || corepack pnpm exec prisma migrate dev`
+  - `migrate deploy` passed and applied `20260312170000_v0_4_0_phase_3_controlled_scheduled_execution`
+- `corepack pnpm db:seed`
   - passed
-- `env COREPACK_HOME='/Users/franny/.codex/worktrees/0bbc/New project 10/.local/corepack' corepack pnpm lint`
+  - prints `Seeded ops-tracker v0.4.0 release-ready demo data.`
+- `corepack pnpm lint`
   - passed
-- `env COREPACK_HOME='/Users/franny/.codex/worktrees/0bbc/New project 10/.local/corepack' corepack pnpm typecheck`
+- `corepack pnpm typecheck`
   - passed
-- `env COREPACK_HOME='/Users/franny/.codex/worktrees/0bbc/New project 10/.local/corepack' corepack pnpm test`
-  - passed, `12` files / `65` tests
-- `env COREPACK_HOME=/Users/franny/.codex/worktrees/0bbc/New\ project\ 10/.local/corepack corepack pnpm test:e2e`
-  - passed, `3` Playwright specs
-- `env COREPACK_HOME='/Users/franny/.codex/worktrees/0bbc/New project 10/.local/corepack' corepack pnpm build`
+- `corepack pnpm test`
+  - passed (`14` files, `75` tests)
+- `corepack pnpm test:e2e`
+  - passed (`5` Playwright specs)
+  - reseeds the demo baseline at suite teardown so the final `recurring:tick` validation still measures the fresh-seed scheduled outcome
+- `corepack pnpm build`
   - passed
-- GitHub Actions `ci` on `origin/codex/v0.3-m3`
-  - observed success for `validate` and `e2e` on the current pushed branch head
-
-## Release handoff
-
-1. Open or refresh the PR from `codex/v0.3-m3` into `main`
-2. Merge the approved PR into `main`
-3. Tag the merge commit: `git switch main && git pull && git tag v0.3.0 <merge-sha> && git push origin v0.3.0`
-4. Publish the GitHub Release from tag `v0.3.0` using `RELEASE_NOTES_v0.3.0.md`
-5. Start M4 only after the merge, tag, and release publish are complete
-
-## v0.3.0 demo
-
-1. Sign in as `admin@ops-tracker.local / ChangeMe123!`
-2. Review dashboard risk cards and drill into the manager queues
-3. Bulk-triage unassigned, overdue, or blocked work from `/tasks`
-4. Open `/templates`
-5. Create a template, generate a one-off task, create a recurring schedule, and click `Generate now`
-6. Open the generated task and confirm the activity timeline entries
-
-## Deferred items for M4
-
-- Background cron execution
-- Queue or worker infrastructure
-- Business-day and holiday due-date logic
-- RRULE or advanced recurrence expressions
-- Cross-workspace templates
-- Template versioning
-- Advanced execution history UI
-- Notification fan-out for recurring execution
-- Member-facing repeat-work permissions beyond admins
-
-## Post-release correction
-
-- v0.3.0 has already been merged to `main` and tagged.
-- The earlier release-closeout steps above are historical and no longer the current next action.
-- M4 should start from `main`, not from the old closeout thread.
-- [follow-up] The most recent local `pnpm test:e2e` rerun showed 2 failures, so the repository should not claim a fully green local closeout until that is reconciled.
-- Use `docs/handoffs/m3-to-m4.md` as the main handoff note for M4.
+- `corepack pnpm recurring:tick`
+  - passed
+  - after a fresh seed it reported `Due: 2`, `Succeeded: 1`, `Failed: 0`, `Skipped: 1`
+  - `Scheduled inventory digest` produced the new `SYSTEM` success row
+  - `Recovery retry drill` was skipped because the seed already includes a failed execution for that same slot

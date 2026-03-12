@@ -7,13 +7,18 @@ import { Panel } from "@/components/ui/panel";
 import { WorkspaceMemberAddForm } from "@/components/workspace/workspace-member-add-form";
 import { WorkspaceMemberRoleForm } from "@/components/workspace/workspace-member-role-form";
 import { getWorkspaceMembersData } from "@/lib/data";
+import {
+  canManageManagerConsole,
+  canManageMemberships
+} from "@/lib/permissions";
 import { formatDateTime } from "@/lib/utils";
 import { getCurrentWorkspaceContext } from "@/lib/workspace";
 
 export default async function WorkspacePage() {
   const [{ membership, workspace }, { availableUsers, memberships }] =
     await Promise.all([getCurrentWorkspaceContext(), getWorkspaceMembersData()]);
-  const canManageMembers = membership.role === "ADMIN";
+  const canManageMembers = canManageMemberships(membership.role);
+  const canAccessManagerConsole = canManageManagerConsole(membership.role);
 
   return (
     <div className="space-y-8">
@@ -46,7 +51,9 @@ export default async function WorkspacePage() {
           <p className="text-sm text-ink/65">
             {canManageMembers
               ? "You can manage membership and all task flow."
-              : "You can view the membership model for this workspace."}
+              : canAccessManagerConsole
+                ? "You can run the manager console, but workspace settings stay admin-controlled."
+                : "You can view the membership model for this workspace."}
           </p>
         </Panel>
         <Panel className="space-y-2">
@@ -105,6 +112,7 @@ export default async function WorkspacePage() {
                         <WorkspaceMemberRoleForm
                           membershipId={member.id}
                           currentRole={member.role}
+                          memberName={member.user.name}
                           disabled={member.userId === membership.userId}
                         />
                       </div>

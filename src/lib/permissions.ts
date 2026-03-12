@@ -13,7 +13,36 @@ export function canManageMemberships(role: WorkspaceRole) {
 }
 
 export function canManageManagerConsole(role: WorkspaceRole) {
-  return role === "ADMIN";
+  return role === "ADMIN" || role === "MANAGER";
+}
+
+export function hasWorkspaceRoleAccess(input: {
+  role: WorkspaceRole;
+  minimumRole: WorkspaceRole;
+}) {
+  switch (input.minimumRole) {
+    case "ADMIN":
+      return canManageMemberships(input.role);
+    case "MANAGER":
+      return canManageManagerConsole(input.role);
+    case "MEMBER":
+      return canMutateWorkspace(input.role);
+    case "VIEWER":
+      return true;
+  }
+}
+
+export function getWorkspaceRoleErrorMessage(minimumRole: WorkspaceRole) {
+  switch (minimumRole) {
+    case "ADMIN":
+      return "Only workspace admins can perform that action.";
+    case "MANAGER":
+      return "Only workspace admins or managers can perform that action.";
+    case "MEMBER":
+      return "Viewer access is read-only.";
+    case "VIEWER":
+      return "Workspace access is required.";
+  }
 }
 
 export function assertCanMutateWorkspace(role: WorkspaceRole) {
@@ -30,7 +59,9 @@ export function assertCanManageMemberships(role: WorkspaceRole) {
 
 export function assertCanManageManagerConsole(role: WorkspaceRole) {
   if (!canManageManagerConsole(role)) {
-    throw new Error("Only workspace admins can access the manager console.");
+    throw new Error(
+      "Only workspace admins or managers can access the manager console."
+    );
   }
 }
 

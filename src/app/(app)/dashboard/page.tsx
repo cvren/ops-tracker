@@ -1,6 +1,5 @@
 import Link from "next/link";
 import type { Route } from "next";
-import { WorkspaceRole } from "@prisma/client";
 
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
@@ -16,6 +15,7 @@ import {
 } from "@/lib/constants";
 import { getDashboardData } from "@/lib/data";
 import { getManagerDashboardData } from "@/lib/manager-data";
+import { canManageManagerConsole } from "@/lib/permissions";
 import { getDueDateBoundary } from "@/lib/task-views";
 import { formatDate, formatDateTime } from "@/lib/utils";
 import { getCurrentWorkspaceContext } from "@/lib/workspace";
@@ -134,15 +134,18 @@ const bottleneckSections = [
 
 export default async function DashboardPage() {
   const context = await getCurrentWorkspaceContext();
+  const canAccessManagerConsole = canManageManagerConsole(
+    context.membership.role
+  );
   const [dashboardData, managerData] = await Promise.all([
     getDashboardData(),
-    context.membership.role === WorkspaceRole.ADMIN
+    canAccessManagerConsole
       ? getManagerDashboardData()
       : Promise.resolve(null)
   ]);
   const overdueBoundary = getDueDateBoundary();
 
-  if (context.membership.role === WorkspaceRole.ADMIN && managerData) {
+  if (canAccessManagerConsole && managerData) {
     return (
       <div className="space-y-8">
         <PageHeader

@@ -2,27 +2,30 @@
 
 import {
   ActivityEventType,
+  RecurringExecutionStatus,
   WorkspaceRole
 } from "@prisma/client";
 
 import { createActivityEvent } from "@/lib/activity";
-import {
-  getBulkUpdateSummary,
-  getDefaultTemplateTaskSummary
-} from "@/lib/manager-console";
+import { getBulkUpdateSummary } from "@/lib/manager-console";
 import {
   buildBulkTaskUpdatePlan,
   dedupeBulkTaskIds,
-  getBulkTaskValidationError,
-  buildTaskFromTemplateValues
+  getBulkTaskValidationError
 } from "@/lib/manager-mutations";
 import { prisma } from "@/lib/prisma";
-import { calculateNextRunAt } from "@/lib/recurring";
+import {
+  createTaskFromTemplateInTransaction,
+  getManualGenerateNowBlockMessage,
+  getRerunBlockMessage,
+  getWorkspaceRecurringExecution,
+  getWorkspaceRecurringSchedule,
+  listScheduleSlotExecutions,
+  runRecurringScheduleExecution
+} from "@/lib/recurring-executions";
 import {
   assertWorkspaceUsers,
   collectSelectedUserIds,
-  createTaskChangeEvents,
-  getUserNameMap,
   getWorkspaceProject,
   revalidateTaskSurfaces
 } from "@/lib/task-action-helpers";
@@ -39,7 +42,6 @@ import {
 } from "@/lib/validation";
 import { requireWorkspaceRole } from "@/lib/workspace";
 import { type ActionState } from "@/lib/forms";
-import type { TaskStatus } from "@prisma/client";
 
 async function getWorkspaceTemplate(workspaceId: string, templateId: string) {
   return prisma.taskTemplate.findFirst({
@@ -57,40 +59,6 @@ async function getWorkspaceTemplate(workspaceId: string, templateId: string) {
       defaultReviewer: {
         select: {
           id: true,
-          name: true
-        }
-      }
-    }
-  });
-}
-
-async function getWorkspaceSchedule(workspaceId: string, scheduleId: string) {
-  return prisma.recurringSchedule.findFirst({
-    where: {
-      id: scheduleId,
-      workspaceId
-    },
-    include: {
-      template: {
-        include: {
-          defaultAssignee: {
-            select: {
-              id: true,
-              name: true
-            }
-          },
-          defaultReviewer: {
-            select: {
-              id: true,
-              name: true
-            }
-          }
-        }
-      },
-      project: {
-        select: {
-          id: true,
-          code: true,
           name: true
         }
       }
@@ -125,111 +93,12 @@ async function ensureUniqueTemplateName(
   }
 }
 
-async function createTaskFromTemplateInTransaction(input: {
-  tx: Parameters<typeof createTaskChangeEvents>[0];
-  workspaceId: string;
-  projectId: string;
-  actorId: string;
-  template: {
-    id: string;
-    name: string;
-    title: string;
-    description: string;
-    defaultAssigneeId: string | null;
-    defaultReviewerId: string | null;
-    defaultDueOffsetDays: number | null;
-    defaultPriority: "LOW" | "MEDIUM" | "HIGH";
-    defaultStatus: TaskStatus;
-    defaultAssignee?: {
-      name: string;
-    } | null;
-    defaultReviewer?: {
-      name: string;
-    } | null;
-  };
-  now: Date;
-  scheduleId?: string;
-}) {
-  const taskValues = buildTaskFromTemplateValues(input.template, input.now);
-  const createdTask = await input.tx.task.create({
-    data: {
-      projectId: input.projectId,
-      ...taskValues,
-      createdById: input.actorId,
-      updatedById: input.actorId
-    }
-  });
-
-  await createActivityEvent(input.tx, {
-    workspaceId: input.workspaceId,
-    projectId: input.projectId,
-    taskId: createdTask.id,
-    actorId: input.actorId,
-    type: ActivityEventType.TASK_CREATED,
-    payload: {
-      summary: `created task "${createdTask.title}"`
-    }
-  });
-
-  const userNameMap = await getUserNameMap(
-    input.tx,
-    collectSelectedUserIds([
-      createdTask.assigneeId,
-      createdTask.reviewerId
-    ])
-  );
-
-  await createTaskChangeEvents(input.tx, {
-    actorId: input.actorId,
-    workspaceId: input.workspaceId,
-    task: {
-      id: createdTask.id,
-      title: createdTask.title,
-      projectId: createdTask.projectId,
-      assigneeId: createdTask.assigneeId,
-      reviewerId: createdTask.reviewerId,
-      createdById: createdTask.createdById,
-      dueDate: createdTask.dueDate,
-      assigneeName: createdTask.assigneeId
-        ? userNameMap.get(createdTask.assigneeId)
-        : null,
-      reviewerName: createdTask.reviewerId
-        ? userNameMap.get(createdTask.reviewerId)
-        : null
-    },
-    previous: {
-      assigneeId: null,
-      reviewerId: null,
-      dueDate: null
-    },
-    generalChangedFields: []
-  });
-
-  await createActivityEvent(input.tx, {
-    workspaceId: input.workspaceId,
-    projectId: input.projectId,
-    taskId: createdTask.id,
-    actorId: input.actorId,
-    type: ActivityEventType.TASK_CREATED_FROM_TEMPLATE,
-    payload: {
-      templateId: input.template.id,
-      scheduleId: input.scheduleId ?? null,
-      summary: getDefaultTemplateTaskSummary({
-        templateName: input.template.name,
-        taskTitle: createdTask.title
-      })
-    }
-  });
-
-  return createdTask;
-}
-
 export async function bulkUpdateTasksAction(
   _previousState: ActionState,
   formData: FormData
 ): Promise<ActionState> {
   try {
-    const context = await requireWorkspaceRole(WorkspaceRole.ADMIN);
+    const context = await requireWorkspaceRole(WorkspaceRole.MANAGER);
     const parsed = parseBulkTaskUpdateFormData(formData);
 
     if (!parsed.success) {
@@ -388,7 +257,7 @@ export async function createTaskTemplateAction(
   formData: FormData
 ): Promise<ActionState> {
   try {
-    const context = await requireWorkspaceRole(WorkspaceRole.ADMIN);
+    const context = await requireWorkspaceRole(WorkspaceRole.MANAGER);
     const parsed = parseTaskTemplateFormData(formData);
 
     if (!parsed.success) {
@@ -461,7 +330,7 @@ export async function updateTaskTemplateAction(
   formData: FormData
 ): Promise<ActionState> {
   try {
-    const context = await requireWorkspaceRole(WorkspaceRole.ADMIN);
+    const context = await requireWorkspaceRole(WorkspaceRole.MANAGER);
     const templateId = getStringValue(formData, "templateId");
     const parsed = parseTaskTemplateFormData(formData);
 
@@ -577,7 +446,7 @@ export async function updateTaskTemplateAction(
 }
 
 export async function deleteTaskTemplateAction(formData: FormData) {
-  const context = await requireWorkspaceRole(WorkspaceRole.ADMIN);
+  const context = await requireWorkspaceRole(WorkspaceRole.MANAGER);
   const templateId = getStringValue(formData, "templateId");
   const template = await prisma.taskTemplate.findFirst({
     where: {
@@ -615,7 +484,7 @@ export async function createTaskFromTemplateAction(
   formData: FormData
 ): Promise<ActionState> {
   try {
-    const context = await requireWorkspaceRole(WorkspaceRole.ADMIN);
+    const context = await requireWorkspaceRole(WorkspaceRole.MANAGER);
     const parsed = parseCreateTaskFromTemplateFormData(formData);
 
     if (!parsed.success) {
@@ -652,7 +521,7 @@ export async function createTaskFromTemplateAction(
         tx,
         workspaceId: context.workspace.id,
         projectId: project.id,
-        actorId: context.user.id,
+        taskActorUserId: context.user.id,
         template,
         now
       })
@@ -682,7 +551,7 @@ export async function createRecurringScheduleAction(
   formData: FormData
 ): Promise<ActionState> {
   try {
-    const context = await requireWorkspaceRole(WorkspaceRole.ADMIN);
+    const context = await requireWorkspaceRole(WorkspaceRole.MANAGER);
     const parsed = parseRecurringScheduleFormData(formData);
 
     if (!parsed.success) {
@@ -760,7 +629,7 @@ export async function updateRecurringScheduleAction(
   formData: FormData
 ): Promise<ActionState> {
   try {
-    const context = await requireWorkspaceRole(WorkspaceRole.ADMIN);
+    const context = await requireWorkspaceRole(WorkspaceRole.MANAGER);
     const scheduleId = getStringValue(formData, "scheduleId");
     const parsed = parseRecurringScheduleFormData(formData);
 
@@ -772,7 +641,7 @@ export async function updateRecurringScheduleAction(
       };
     }
 
-    const existingSchedule = await getWorkspaceSchedule(
+    const existingSchedule = await getWorkspaceRecurringSchedule(
       context.workspace.id,
       scheduleId
     );
@@ -868,8 +737,11 @@ export async function executeRecurringScheduleAction(
   scheduleId: string
 ): Promise<ActionState> {
   try {
-    const context = await requireWorkspaceRole(WorkspaceRole.ADMIN);
-    const schedule = await getWorkspaceSchedule(context.workspace.id, scheduleId);
+    const context = await requireWorkspaceRole(WorkspaceRole.MANAGER);
+    const schedule = await getWorkspaceRecurringSchedule(
+      context.workspace.id,
+      scheduleId
+    );
 
     if (!schedule) {
       return {
@@ -885,106 +757,149 @@ export async function executeRecurringScheduleAction(
       };
     }
 
-    await assertWorkspaceUsers(
-      context.workspace.id,
-      collectSelectedUserIds([
-        schedule.template.defaultAssigneeId,
-        schedule.template.defaultReviewerId
-      ])
-    );
+    const slotExecutions = await listScheduleSlotExecutions({
+      workspaceId: context.workspace.id,
+      recurringScheduleId: schedule.id,
+      scheduledFor: schedule.nextRunAt
+    });
+    const blockMessage = getManualGenerateNowBlockMessage(slotExecutions);
 
-    const now = new Date();
+    if (blockMessage) {
+      return {
+        status: "error",
+        message: blockMessage
+      };
+    }
 
-    const result = await prisma.$transaction(async (tx) => {
-      const execution = await tx.recurringExecution.create({
-        data: {
-          scheduleId: schedule.id,
-          scheduledFor: schedule.nextRunAt
-        }
-      });
+    const result = await runRecurringScheduleExecution({
+      schedule,
+      scheduledFor: schedule.nextRunAt,
+      actor: {
+        trigger: "USER",
+        triggeredByUserId: context.user.id,
+        taskActorUserId: context.user.id,
+        executionActivityActorId: context.user.id
+      }
+    });
 
-      const task = await createTaskFromTemplateInTransaction({
-        tx,
-        workspaceId: context.workspace.id,
-        projectId: schedule.projectId,
-        actorId: context.user.id,
-        template: schedule.template,
-        now,
-        scheduleId: schedule.id
-      });
-
-      await tx.recurringExecution.update({
-        where: {
-          id: execution.id
-        },
-        data: {
-          createdTaskId: task.id
-        }
-      });
-
-      const updatedSchedule = await tx.recurringSchedule.update({
-        where: {
-          id: schedule.id
-        },
-        data: {
-          lastRunAt: now,
-          updatedById: context.user.id,
-          nextRunAt: calculateNextRunAt({
-            cadence: schedule.cadence,
-            interval: schedule.interval,
-            nextRunAt: schedule.nextRunAt
-          })
-        }
-      });
-
-      await createActivityEvent(tx, {
-        workspaceId: context.workspace.id,
-        projectId: schedule.projectId,
-        taskId: task.id,
-        actorId: context.user.id,
-        type: ActivityEventType.RECURRING_SCHEDULE_EXECUTED,
-        payload: {
-          scheduleId: schedule.id,
-          templateId: schedule.template.id,
-          summary: `generated recurring task from ${schedule.template.name}`
-        }
+    if (result.outcome === "SUCCESS") {
+      revalidateTaskSurfaces({
+        taskId: result.taskId,
+        projectIds: [schedule.projectId]
       });
 
       return {
-        task,
-        updatedSchedule
+        status: "success",
+        message: result.message,
+        entityId: result.taskId
       };
-    });
+    }
 
     revalidateTaskSurfaces({
-      taskId: result.task.id,
       projectIds: [schedule.projectId]
     });
 
     return {
-      status: "success",
-      message: `Generated ${result.task.title}.`,
-      entityId: result.task.id
+      status: "error",
+      message: result.message
     };
   } catch (error) {
-    if (
-      typeof error === "object" &&
-      error !== null &&
-      "code" in error &&
-      error.code === "P2002"
-    ) {
-      return {
-        status: "error",
-        message: "This schedule already generated its current run slot."
-      };
-    }
-
     return {
       status: "error",
       message:
         error instanceof Error
           ? error.message
           : "Recurring schedule execution failed."
+    };
+  }
+}
+
+export async function rerunRecurringExecutionAction(
+  executionId: string
+): Promise<ActionState> {
+  try {
+    const context = await requireWorkspaceRole(WorkspaceRole.MANAGER);
+    const execution = await getWorkspaceRecurringExecution(
+      context.workspace.id,
+      executionId
+    );
+
+    if (!execution) {
+      return {
+        status: "error",
+        message: "Execution not found."
+      };
+    }
+
+    if (execution.status !== RecurringExecutionStatus.FAILED) {
+      return {
+        status: "error",
+        message: "Only failed executions can be rerun."
+      };
+    }
+
+    if (!execution.recurringSchedule.isActive) {
+      return {
+        status: "error",
+        message: "Activate the schedule before rerunning a failed slot."
+      };
+    }
+
+    const slotExecutions = await listScheduleSlotExecutions({
+      workspaceId: context.workspace.id,
+      recurringScheduleId: execution.recurringScheduleId,
+      scheduledFor: execution.scheduledFor
+    });
+    const blockMessage = getRerunBlockMessage({
+      failedExecutionId: execution.id,
+      executions: slotExecutions
+    });
+
+    if (blockMessage) {
+      return {
+        status: "error",
+        message: blockMessage
+      };
+    }
+
+    const result = await runRecurringScheduleExecution({
+      schedule: execution.recurringSchedule,
+      scheduledFor: execution.scheduledFor,
+      rerunOfExecutionId: execution.id,
+      actor: {
+        trigger: "USER",
+        triggeredByUserId: context.user.id,
+        taskActorUserId: context.user.id,
+        executionActivityActorId: context.user.id
+      }
+    });
+
+    if (result.outcome === "SUCCESS") {
+      revalidateTaskSurfaces({
+        taskId: result.taskId,
+        projectIds: [execution.recurringSchedule.projectId]
+      });
+
+      return {
+        status: "success",
+        message: result.message,
+        entityId: result.taskId
+      };
+    }
+
+    revalidateTaskSurfaces({
+      projectIds: [execution.recurringSchedule.projectId]
+    });
+
+    return {
+      status: "error",
+      message: result.message
+    };
+  } catch (error) {
+    return {
+      status: "error",
+      message:
+        error instanceof Error ? error.message : "Failed execution rerun failed."
     };
   }
 }

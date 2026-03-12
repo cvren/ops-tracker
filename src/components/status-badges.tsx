@@ -1,4 +1,5 @@
 import {
+  type RecurringExecutionStatus,
   type ProjectStatus,
   type TaskPriority,
   type TaskStatus,
@@ -9,6 +10,8 @@ import { Badge } from "@/components/ui/badge";
 import {
   projectStatusClasses,
   projectStatusLabels,
+  recurringExecutionStatusClasses,
+  recurringExecutionStatusLabels,
   taskPriorityClasses,
   taskPriorityLabels,
   taskStatusClasses,
@@ -53,6 +56,18 @@ export function WorkspaceRoleBadge({ role }: { role: WorkspaceRole }) {
   return (
     <Badge className={workspaceRoleClasses[role]}>
       {workspaceRoleLabels[role]}
+    </Badge>
+  );
+}
+
+export function RecurringExecutionStatusBadge({
+  status
+}: {
+  status: RecurringExecutionStatus;
+}) {
+  return (
+    <Badge className={recurringExecutionStatusClasses[status]}>
+      {recurringExecutionStatusLabels[status]}
     </Badge>
   );
 }

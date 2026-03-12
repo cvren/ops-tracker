@@ -4,6 +4,8 @@ import {
   activityEventLabels,
   projectStatusLabels,
   recurringCadenceLabels,
+  recurringExecutionStatusLabels,
+  recurringTriggerSourceLabels,
   taskPriorityLabels,
   taskStatusLabels,
   taskViewLabels,
@@ -26,8 +28,17 @@ describe("label maps", () => {
     expect(taskViewLabels["my-tasks"]).toBe("My Tasks");
     expect(taskViewLabels["review-queue"]).toBe("Review Queue");
     expect(workspaceRoleLabels.ADMIN).toBe("Admin");
+    expect(workspaceRoleLabels.MANAGER).toBe("Manager");
     expect(activityEventLabels.COMMENT_MENTIONED).toBe("Mentioned teammate");
     expect(activityEventLabels.TASK_BULK_UPDATED).toBe("Bulk updated");
+    expect(activityEventLabels.MANAGER_ROLE_GRANTED).toBe(
+      "Manager access granted"
+    );
+    expect(activityEventLabels.RECURRING_EXECUTION_FAILED).toBe(
+      "Recurring execution failed"
+    );
+    expect(recurringExecutionStatusLabels.FAILED).toBe("Failed");
+    expect(recurringTriggerSourceLabels.USER).toBe("User");
     expect(recurringCadenceLabels.WEEKLY).toBe("Weekly");
   });
 });

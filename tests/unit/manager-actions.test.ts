@@ -85,9 +85,9 @@ describe("manager bulk actions", () => {
     );
   });
 
-  it("keeps bulk actions admin-only", async () => {
+  it("blocks members from manager bulk actions", async () => {
     requireWorkspaceRole.mockRejectedValue(
-      new Error("Only workspace admins can manage this queue.")
+      new Error("Only workspace admins or managers can perform that action.")
     );
 
     const result = await bulkUpdateTasksAction(
@@ -107,7 +107,7 @@ describe("manager bulk actions", () => {
 
     expect(result).toMatchObject({
       status: "error",
-      message: "Only workspace admins can manage this queue."
+      message: "Only workspace admins or managers can perform that action."
     });
     expect(transaction).not.toHaveBeenCalled();
   });

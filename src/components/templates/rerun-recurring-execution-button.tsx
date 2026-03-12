@@ -2,20 +2,16 @@
 
 import Link from "next/link";
 import type { Route } from "next";
-import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { useState, useTransition } from "react";
 
-import { executeRecurringScheduleAction } from "@/app/actions/manager-actions";
+import { rerunRecurringExecutionAction } from "@/app/actions/manager-actions";
 import { Button } from "@/components/ui/button";
 
-export function ExecuteRecurringButton({
-  scheduleId,
-  isActive,
-  blockedReason
+export function RerunRecurringExecutionButton({
+  executionId
 }: {
-  scheduleId: string;
-  isActive: boolean;
-  blockedReason?: string | null;
+  executionId: string;
 }) {
   const router = useRouter();
   const [message, setMessage] = useState<string | null>(null);
@@ -26,42 +22,29 @@ export function ExecuteRecurringButton({
   return (
     <div className="space-y-2">
       <Button
+        variant="secondary"
         onClick={() => {
           setMessage(null);
           setEntityId(null);
           setError(null);
           startTransition(async () => {
-            const result = await executeRecurringScheduleAction(scheduleId);
+            const result = await rerunRecurringExecutionAction(executionId);
 
             if (result.status === "error") {
-              setError(result.message ?? "Schedule execution failed.");
+              setError(result.message ?? "Failed execution rerun failed.");
               router.refresh();
               return;
             }
 
-            setMessage(result.message ?? "Generated recurring task.");
+            setMessage(result.message ?? "Reran the failed execution.");
             setEntityId(result.entityId ?? null);
             router.refresh();
           });
         }}
-        disabled={isPending || !isActive || Boolean(blockedReason)}
-        fullWidth={false}
+        disabled={isPending}
       >
-        {!isActive
-          ? "Inactive schedule"
-          : blockedReason
-            ? "Use execution history"
-            : isPending
-              ? "Generating..."
-              : "Generate now"}
+        {isPending ? "Rerunning..." : "Rerun failed slot"}
       </Button>
-      {!isActive ? (
-        <p className="text-sm text-ink/60">
-          Activate the schedule before generating the next task.
-        </p>
-      ) : blockedReason ? (
-        <p className="text-sm text-ink/60">{blockedReason}</p>
-      ) : null}
       {message ? (
         <p className="text-sm text-emerald-800">
           {message}{" "}

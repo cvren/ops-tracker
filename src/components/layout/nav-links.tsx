@@ -5,10 +5,11 @@ import type { Route } from "next";
 import type { WorkspaceRole } from "@prisma/client";
 import { usePathname } from "next/navigation";
 
+import { canManageManagerConsole } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
 
 function getLinks(role: WorkspaceRole) {
-  if (role === "ADMIN") {
+  if (canManageManagerConsole(role)) {
     return [
       { href: "/dashboard", label: "Dashboard" },
       { href: "/projects", label: "Projects" },

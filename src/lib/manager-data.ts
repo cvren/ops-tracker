@@ -61,7 +61,7 @@ async function getTaskCards(workspaceId: string, taskIds: string[]) {
 }
 
 export async function getManagerDashboardData() {
-  const context = await requireWorkspaceRole(WorkspaceRole.ADMIN);
+  const context = await requireWorkspaceRole(WorkspaceRole.MANAGER);
   const now = new Date();
   const overdueBoundary = getDueDateBoundary(now);
 
@@ -204,7 +204,7 @@ export async function getManagerDashboardData() {
 }
 
 export async function getManagerWorkloadData() {
-  const context = await requireWorkspaceRole(WorkspaceRole.ADMIN);
+  const context = await requireWorkspaceRole(WorkspaceRole.MANAGER);
   const now = new Date();
 
   const [memberships, openTasks] = await Promise.all([
@@ -253,7 +253,7 @@ export async function getManagerWorkloadData() {
 }
 
 export async function getTemplateConsoleData() {
-  const context = await requireWorkspaceRole(WorkspaceRole.ADMIN);
+  const context = await requireWorkspaceRole(WorkspaceRole.MANAGER);
 
   const [users, projects, templates, schedules, recentActivity] =
     await Promise.all([
@@ -328,6 +328,25 @@ export async function getTemplateConsoleData() {
               code: true,
               name: true
             }
+          },
+          executions: {
+            orderBy: [{ startedAt: "desc" }, { createdAt: "desc" }],
+            take: 6,
+            include: {
+              triggeredByUser: {
+                select: {
+                  id: true,
+                  name: true
+                }
+              },
+              generatedTasks: {
+                orderBy: [{ createdAt: "asc" }],
+                select: {
+                  id: true,
+                  title: true
+                }
+              }
+            }
           }
         }
       }),
@@ -341,7 +360,12 @@ export async function getTemplateConsoleData() {
               "TASK_CREATED_FROM_TEMPLATE",
               "RECURRING_SCHEDULE_CREATED",
               "RECURRING_SCHEDULE_UPDATED",
-              "RECURRING_SCHEDULE_EXECUTED"
+              "RECURRING_SCHEDULE_EXECUTED",
+              "RECURRING_EXECUTION_STARTED",
+              "RECURRING_EXECUTION_SUCCEEDED",
+              "RECURRING_EXECUTION_FAILED",
+              "RECURRING_EXECUTION_RERUN",
+              "RECURRING_EXECUTION_SKIPPED"
             ]
           }
         },
