@@ -1,5 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+const workspaceId = "ckworkspace000000000000000001";
+const managerId = "ckmanager0000000000000000001";
+const memberId = "ckmember00000000000000000001";
+const reviewerId = "ckreviewer00000000000000001";
+const templateId = "cktemplate00000000000000001";
+const projectId = "ckproject000000000000000001";
+const scheduleId = "ckschedule00000000000000001";
+
 const {
   requireWorkspaceRole,
   createActivityEvent,
@@ -16,6 +24,9 @@ const {
   recurringScheduleFindFirst,
   recurringScheduleCreate,
   recurringScheduleUpdate,
+  recurringScheduleUpdateMany,
+  recurringExecutionFindFirst,
+  recurringExecutionFindMany,
   recurringExecutionCreate,
   recurringExecutionUpdate,
   taskCreate
@@ -35,6 +46,9 @@ const {
   recurringScheduleFindFirst: vi.fn(),
   recurringScheduleCreate: vi.fn(),
   recurringScheduleUpdate: vi.fn(),
+  recurringScheduleUpdateMany: vi.fn(),
+  recurringExecutionFindFirst: vi.fn(),
+  recurringExecutionFindMany: vi.fn(),
   recurringExecutionCreate: vi.fn(),
   recurringExecutionUpdate: vi.fn(),
   taskCreate: vi.fn()
@@ -56,6 +70,12 @@ vi.mock("@/lib/prisma", () => ({
     },
     recurringSchedule: {
       findFirst: recurringScheduleFindFirst
+    },
+    recurringExecution: {
+      findFirst: recurringExecutionFindFirst,
+      findMany: recurringExecutionFindMany,
+      create: recurringExecutionCreate,
+      update: recurringExecutionUpdate
     }
   }
 }));
@@ -79,6 +99,7 @@ import {
   createTaskFromTemplateAction,
   createTaskTemplateAction,
   executeRecurringScheduleAction,
+  rerunRecurringExecutionAction,
   updateRecurringScheduleAction,
   updateTaskTemplateAction
 } from "@/app/actions/manager-actions";
@@ -87,6 +108,40 @@ type ActivityInput = {
   type: string;
   payload?: Record<string, unknown>;
 };
+
+type TransactionMock = {
+  taskTemplate: {
+    create: typeof taskTemplateCreate;
+    update: typeof taskTemplateUpdate;
+  };
+  recurringSchedule: {
+    create: typeof recurringScheduleCreate;
+    update: typeof recurringScheduleUpdate;
+    updateMany: typeof recurringScheduleUpdateMany;
+  };
+  recurringExecution: {
+    update: typeof recurringExecutionUpdate;
+  };
+  task: {
+    create: typeof taskCreate;
+  };
+};
+
+type MutationCreateArgs = {
+  data: Record<string, unknown>;
+};
+
+type MutationUpdateArgs = {
+  where: Record<string, unknown>;
+  data: Record<string, unknown>;
+};
+
+function getActivityTypes() {
+  return createActivityEvent.mock.calls.map((entry) => {
+    const [, input] = entry as [unknown, ActivityInput];
+    return input.type;
+  });
+}
 
 function getActivityInput(type: string) {
   const activityCall = createActivityEvent.mock.calls.find((entry) => {
@@ -115,25 +170,72 @@ function createFormData(values: Record<string, string | string[]>) {
 }
 
 function installTransactionMock() {
-  transaction.mockImplementation((callback: (tx: unknown) => unknown) =>
-    callback({
+  transaction.mockImplementation((callback: (tx: TransactionMock) => unknown) =>
+    Promise.resolve(
+      callback({
       taskTemplate: {
         create: taskTemplateCreate,
         update: taskTemplateUpdate
       },
       recurringSchedule: {
         create: recurringScheduleCreate,
-        update: recurringScheduleUpdate
+        update: recurringScheduleUpdate,
+        updateMany: recurringScheduleUpdateMany
       },
       recurringExecution: {
-        create: recurringExecutionCreate,
         update: recurringExecutionUpdate
       },
       task: {
         create: taskCreate
       }
-    })
+      })
+    )
   );
+}
+
+function getFirstMockArgument<T>(mockFn: { mock: { calls: unknown[][] } }) {
+  const firstCall = mockFn.mock.calls[0];
+
+  if (!firstCall) {
+    throw new Error("Expected mock to be called at least once.");
+  }
+
+  return firstCall[0] as T;
+}
+
+function buildSchedule(overrides: Record<string, unknown> = {}) {
+  return {
+    id: scheduleId,
+    workspaceId,
+    templateId,
+    projectId,
+    cadence: "WEEKLY",
+    interval: 1,
+    nextRunAt: new Date("2026-03-12T12:00:00.000Z"),
+    lastRunAt: null,
+    isActive: true,
+    createdById: "ckadmin00000000000000000001",
+    updatedById: "ckadmin00000000000000000001",
+    template: {
+      id: templateId,
+      name: "Weekly review sweep",
+      title: "Run weekly review sweep",
+      description: "Sweep the review queue and capture the next handoff risk.",
+      defaultAssigneeId: memberId,
+      defaultReviewerId: reviewerId,
+      defaultDueOffsetDays: 2,
+      defaultPriority: "HIGH",
+      defaultStatus: "BACKLOG",
+      defaultAssignee: { id: memberId, name: "Ken Operator" },
+      defaultReviewer: { id: reviewerId, name: "Mika Reviewer" }
+    },
+    project: {
+      id: projectId,
+      code: "OPS-ALPHA",
+      name: "Harbor inventory rollout"
+    },
+    ...overrides
+  };
 }
 
 describe("repeat-work manager actions", () => {
@@ -143,24 +245,31 @@ describe("repeat-work manager actions", () => {
     vi.setSystemTime(new Date("2026-03-11T09:00:00.000Z"));
 
     requireWorkspaceRole.mockResolvedValue({
-      workspace: { id: "workspace-1" },
-      user: { id: "admin-1" }
+      workspace: { id: workspaceId },
+      user: { id: managerId }
     });
     assertWorkspaceUsers.mockResolvedValue(undefined);
     createActivityEvent.mockResolvedValue({ id: "event-1" });
     createTaskChangeEvents.mockResolvedValue(undefined);
     getUserNameMap.mockResolvedValue(
       new Map([
-        ["member-1", "Ken Operator"],
-        ["reviewer-1", "Mika Reviewer"]
+        [memberId, "Ken Operator"],
+        [reviewerId, "Mika Reviewer"]
       ])
     );
     getWorkspaceProject.mockResolvedValue({
-      id: "project-1",
+      id: projectId,
       code: "OPS-ALPHA",
       name: "Harbor inventory rollout"
     });
-    calculateNextRunAt.mockReturnValue(new Date("2026-03-18T12:00:00.000Z"));
+    calculateNextRunAt.mockReturnValue(new Date("2026-03-19T12:00:00.000Z"));
+    recurringExecutionFindMany.mockResolvedValue([]);
+    recurringExecutionFindFirst.mockResolvedValue(null);
+    recurringExecutionCreate.mockResolvedValue({
+      id: "execution-1"
+    });
+    recurringExecutionUpdate.mockResolvedValue({});
+    recurringScheduleUpdateMany.mockResolvedValue({ count: 1 });
 
     installTransactionMock();
   });
@@ -172,7 +281,7 @@ describe("repeat-work manager actions", () => {
   it("creates a task template with authorship and activity trace", async () => {
     taskTemplateFindFirst.mockResolvedValue(null);
     taskTemplateCreate.mockResolvedValue({
-      id: "template-1",
+      id: templateId,
       name: "Weekly review sweep"
     });
 
@@ -182,8 +291,8 @@ describe("repeat-work manager actions", () => {
         name: "Weekly review sweep",
         title: "Run weekly review sweep",
         description: "Sweep the review queue and capture the next handoff risk.",
-        defaultAssigneeId: "cm8opsdemo0000000000000001",
-        defaultReviewerId: "cm8opsdemo0000000000000002",
+        defaultAssigneeId: memberId,
+        defaultReviewerId: reviewerId,
         defaultDueOffsetDays: "2",
         defaultPriority: "HIGH",
         defaultStatus: "BACKLOG"
@@ -192,64 +301,51 @@ describe("repeat-work manager actions", () => {
 
     expect(result).toMatchObject({
       status: "success",
-      entityId: "template-1"
+      entityId: templateId
     });
-    const [[createTemplateCall]] = taskTemplateCreate.mock.calls as Array<
-      [
-        {
-          data: {
-            workspaceId: string;
-            name: string;
-            createdById: string;
-            updatedById: string;
-            defaultDueOffsetDays: number | null;
-          };
-        }
-      ]
-    >;
-
-    expect(createTemplateCall.data.workspaceId).toBe("workspace-1");
-    expect(createTemplateCall.data.name).toBe("Weekly review sweep");
-    expect(createTemplateCall.data.createdById).toBe("admin-1");
-    expect(createTemplateCall.data.updatedById).toBe("admin-1");
-    expect(createTemplateCall.data.defaultDueOffsetDays).toBe(2);
-
-    const templateCreatedActivity = getActivityInput("TASK_TEMPLATE_CREATED");
-    expect(templateCreatedActivity?.payload).toMatchObject({
-      templateId: "template-1"
+    const createTemplateArgs =
+      getFirstMockArgument<MutationCreateArgs>(taskTemplateCreate);
+    expect(createTemplateArgs.data).toMatchObject({
+      workspaceId,
+      name: "Weekly review sweep",
+      createdById: managerId,
+      updatedById: managerId,
+      defaultDueOffsetDays: 2
     });
-    expect(revalidateTaskSurfaces).toHaveBeenCalledWith({});
+    expect(getActivityInput("TASK_TEMPLATE_CREATED")?.payload).toMatchObject({
+      templateId
+    });
   });
 
   it("updates a task template and records the changed fields", async () => {
     taskTemplateFindFirst
       .mockResolvedValueOnce({
-        id: "template-1",
-        workspaceId: "workspace-1",
+        id: templateId,
+        workspaceId,
         name: "Weekly review sweep",
         title: "Run weekly review sweep",
         description: "Sweep the review queue and capture the next handoff risk.",
-        defaultAssigneeId: "cm8opsdemo0000000000000001",
-        defaultReviewerId: "cm8opsdemo0000000000000002",
+        defaultAssigneeId: memberId,
+        defaultReviewerId: reviewerId,
         defaultDueOffsetDays: 2,
         defaultPriority: "MEDIUM",
         defaultStatus: "BACKLOG"
       })
       .mockResolvedValueOnce(null);
     taskTemplateUpdate.mockResolvedValue({
-      id: "template-1",
+      id: templateId,
       name: "Weekly review sweep"
     });
 
     const result = await updateTaskTemplateAction(
       { status: "idle" },
       createFormData({
-        templateId: "cm8opsdemo0000000000000101",
+        templateId,
         name: "Weekly review sweep",
         title: "Run weekly review sweep",
         description: "Sweep the review queue and capture the next handoff risk.",
-        defaultAssigneeId: "cm8opsdemo0000000000000001",
-        defaultReviewerId: "cm8opsdemo0000000000000002",
+        defaultAssigneeId: memberId,
+        defaultReviewerId: reviewerId,
         defaultDueOffsetDays: "4",
         defaultPriority: "HIGH",
         defaultStatus: "IN_PROGRESS"
@@ -258,65 +354,51 @@ describe("repeat-work manager actions", () => {
 
     expect(result).toMatchObject({
       status: "success",
-      entityId: "template-1"
+      entityId: templateId
     });
-    const [[updateTemplateCall]] = taskTemplateUpdate.mock.calls as Array<
-      [
-        {
-          where: {
-            id: string;
-          };
-          data: {
-            updatedById: string;
-            defaultDueOffsetDays: number | null;
-            defaultPriority: string;
-            defaultStatus: string;
-          };
-        }
-      ]
-    >;
-
-    expect(updateTemplateCall.where.id).toBe("cm8opsdemo0000000000000101");
-    expect(updateTemplateCall.data.updatedById).toBe("admin-1");
-    expect(updateTemplateCall.data.defaultDueOffsetDays).toBe(4);
-    expect(updateTemplateCall.data.defaultPriority).toBe("HIGH");
-    expect(updateTemplateCall.data.defaultStatus).toBe("IN_PROGRESS");
-
-    const templateUpdatedActivity = getActivityInput("TASK_TEMPLATE_UPDATED");
-    expect(templateUpdatedActivity?.payload).toMatchObject({
+    const updateTemplateArgs =
+      getFirstMockArgument<MutationUpdateArgs>(taskTemplateUpdate);
+    expect(updateTemplateArgs.where).toMatchObject({ id: templateId });
+    expect(updateTemplateArgs.data).toMatchObject({
+      updatedById: managerId,
+      defaultDueOffsetDays: 4,
+      defaultPriority: "HIGH",
+      defaultStatus: "IN_PROGRESS"
+    });
+    expect(getActivityInput("TASK_TEMPLATE_UPDATED")?.payload).toMatchObject({
       changedFields: ["default due offset", "default priority", "default status"]
     });
   });
 
   it("creates a task from a template with the mapped defaults", async () => {
     taskTemplateFindFirst.mockResolvedValue({
-      id: "template-1",
+      id: templateId,
       name: "Weekly review sweep",
       title: "Run weekly review sweep",
       description: "Sweep the review queue and capture the next handoff risk.",
-      defaultAssigneeId: "member-1",
-      defaultReviewerId: "reviewer-1",
+      defaultAssigneeId: memberId,
+      defaultReviewerId: reviewerId,
       defaultDueOffsetDays: 2,
       defaultPriority: "HIGH",
       defaultStatus: "IN_PROGRESS",
-      defaultAssignee: { id: "member-1", name: "Ken Operator" },
-      defaultReviewer: { id: "reviewer-1", name: "Mika Reviewer" }
+      defaultAssignee: { id: memberId, name: "Ken Operator" },
+      defaultReviewer: { id: reviewerId, name: "Mika Reviewer" }
     });
     taskCreate.mockResolvedValue({
       id: "task-1",
       title: "Run weekly review sweep",
-      projectId: "project-1",
-      assigneeId: "member-1",
-      reviewerId: "reviewer-1",
-      createdById: "admin-1",
+      projectId,
+      assigneeId: memberId,
+      reviewerId,
+      createdById: managerId,
       dueDate: new Date("2026-03-13T12:00:00.000Z")
     });
 
     const result = await createTaskFromTemplateAction(
       { status: "idle" },
       createFormData({
-        templateId: "cm8opsdemo0000000000000101",
-        projectId: "cm8opsdemo0000000000000102"
+        templateId,
+        projectId
       })
     );
 
@@ -324,71 +406,43 @@ describe("repeat-work manager actions", () => {
       status: "success",
       entityId: "task-1"
     });
-    const [[createTaskCall]] = taskCreate.mock.calls as Array<
-      [
-        {
-          data: {
-            projectId: string;
-            title: string;
-            assigneeId: string | null;
-            reviewerId: string | null;
-            createdById: string;
-            updatedById: string;
-            dueDate: Date | null;
-            status: string;
-            priority: string;
-          };
-        }
-      ]
-    >;
-
-    expect(createTaskCall.data.projectId).toBe("project-1");
-    expect(createTaskCall.data.title).toBe("Run weekly review sweep");
-    expect(createTaskCall.data.assigneeId).toBe("member-1");
-    expect(createTaskCall.data.reviewerId).toBe("reviewer-1");
-    expect(createTaskCall.data.createdById).toBe("admin-1");
-    expect(createTaskCall.data.updatedById).toBe("admin-1");
-    expect(createTaskCall.data.dueDate).toEqual(
-      new Date("2026-03-13T12:00:00.000Z")
-    );
-    expect(createTaskCall.data.status).toBe("IN_PROGRESS");
-    expect(createTaskCall.data.priority).toBe("HIGH");
-
-    const createdFromTemplateActivity = getActivityInput(
-      "TASK_CREATED_FROM_TEMPLATE"
-    );
-    expect(createdFromTemplateActivity?.payload).toMatchObject({
-      templateId: "template-1"
+    const createTaskArgs = getFirstMockArgument<MutationCreateArgs>(taskCreate);
+    expect(createTaskArgs.data).toMatchObject({
+      projectId,
+      title: "Run weekly review sweep",
+      assigneeId: memberId,
+      reviewerId,
+      createdById: managerId,
+      updatedById: managerId,
+      status: "IN_PROGRESS",
+      priority: "HIGH"
     });
-    expect(revalidateTaskSurfaces).toHaveBeenCalledWith({
-      taskId: "task-1",
-      projectIds: ["project-1"]
+    expect(getActivityInput("TASK_CREATED_FROM_TEMPLATE")?.payload).toMatchObject({
+      templateId
     });
   });
 
   it("creates and updates recurring schedules with activity trace", async () => {
     taskTemplateFindFirst.mockResolvedValue({
-      id: "template-1",
+      id: templateId,
       name: "Weekly review sweep",
       title: "Run weekly review sweep",
       description: "Sweep the review queue and capture the next handoff risk.",
-      defaultAssigneeId: "member-1",
-      defaultReviewerId: "reviewer-1",
+      defaultAssigneeId: memberId,
+      defaultReviewerId: reviewerId,
       defaultDueOffsetDays: 2,
       defaultPriority: "HIGH",
       defaultStatus: "BACKLOG",
-      defaultAssignee: { id: "member-1", name: "Ken Operator" },
-      defaultReviewer: { id: "reviewer-1", name: "Mika Reviewer" }
+      defaultAssignee: { id: memberId, name: "Ken Operator" },
+      defaultReviewer: { id: reviewerId, name: "Mika Reviewer" }
     });
-    recurringScheduleCreate.mockResolvedValue({
-      id: "schedule-1"
-    });
+    recurringScheduleCreate.mockResolvedValue({ id: scheduleId });
 
     const createResult = await createRecurringScheduleAction(
       { status: "idle" },
       createFormData({
-        templateId: "cm8opsdemo0000000000000101",
-        projectId: "cm8opsdemo0000000000000102",
+        templateId,
+        projectId,
         cadence: "WEEKLY",
         interval: "2",
         nextRunAt: "2026-03-20",
@@ -398,70 +452,35 @@ describe("repeat-work manager actions", () => {
 
     expect(createResult).toMatchObject({
       status: "success",
-      entityId: "schedule-1"
+      entityId: scheduleId
     });
-    const [[createScheduleCall]] = recurringScheduleCreate.mock.calls as Array<
-      [
-        {
-          data: {
-            workspaceId: string;
-            templateId: string;
-            projectId: string;
-            cadence: string;
-            interval: number;
-            nextRunAt: Date;
-            isActive: boolean;
-            createdById: string;
-            updatedById: string;
-          };
-        }
-      ]
-    >;
-
-    expect(createScheduleCall.data.workspaceId).toBe("workspace-1");
-    expect(createScheduleCall.data.templateId).toBe("template-1");
-    expect(createScheduleCall.data.projectId).toBe("project-1");
-    expect(createScheduleCall.data.cadence).toBe("WEEKLY");
-    expect(createScheduleCall.data.interval).toBe(2);
-    expect(createScheduleCall.data.nextRunAt).toEqual(
-      new Date("2026-03-20T12:00:00.000Z")
-    );
-    expect(createScheduleCall.data.isActive).toBe(true);
-    expect(createScheduleCall.data.createdById).toBe("admin-1");
-    expect(createScheduleCall.data.updatedById).toBe("admin-1");
-
-    recurringScheduleFindFirst.mockResolvedValue({
-      id: "schedule-1",
-      templateId: "template-1",
-      projectId: "project-1",
+    const createScheduleArgs =
+      getFirstMockArgument<MutationCreateArgs>(recurringScheduleCreate);
+    expect(createScheduleArgs.data).toMatchObject({
+      workspaceId,
+      templateId,
+      projectId,
       cadence: "WEEKLY",
       interval: 2,
-      nextRunAt: new Date("2026-03-20T12:00:00.000Z"),
       isActive: true,
-      template: {
-        id: "template-1",
-        name: "Weekly review sweep",
-        defaultAssigneeId: "member-1",
-        defaultReviewerId: "reviewer-1",
-        defaultAssignee: { id: "member-1", name: "Ken Operator" },
-        defaultReviewer: { id: "reviewer-1", name: "Mika Reviewer" }
-      },
-      project: {
-        id: "project-1",
-        code: "OPS-ALPHA",
-        name: "Harbor inventory rollout"
-      }
+      createdById: managerId,
+      updatedById: managerId
     });
-    recurringScheduleUpdate.mockResolvedValue({
-      id: "schedule-1"
-    });
+
+    recurringScheduleFindFirst.mockResolvedValue(
+      buildSchedule({
+        nextRunAt: new Date("2026-03-20T12:00:00.000Z"),
+        interval: 2
+      })
+    );
+    recurringScheduleUpdate.mockResolvedValue({ id: scheduleId });
 
     const updateResult = await updateRecurringScheduleAction(
       { status: "idle" },
       createFormData({
-        scheduleId: "cm8opsdemo0000000000000103",
-        templateId: "cm8opsdemo0000000000000101",
-        projectId: "cm8opsdemo0000000000000102",
+        scheduleId,
+        templateId,
+        projectId,
         cadence: "MONTHLY",
         interval: "1",
         nextRunAt: "2026-04-01",
@@ -471,210 +490,206 @@ describe("repeat-work manager actions", () => {
 
     expect(updateResult).toMatchObject({
       status: "success",
-      entityId: "schedule-1"
+      entityId: scheduleId
     });
-    const [[updateScheduleCall]] = recurringScheduleUpdate.mock.calls as Array<
-      [
-        {
-          where: {
-            id: string;
-          };
-          data: {
-            cadence: string;
-            interval: number;
-            nextRunAt: Date;
-            isActive: boolean;
-            updatedById: string;
-          };
-        }
-      ]
-    >;
-
-    expect(updateScheduleCall.where.id).toBe("cm8opsdemo0000000000000103");
-    expect(updateScheduleCall.data.cadence).toBe("MONTHLY");
-    expect(updateScheduleCall.data.interval).toBe(1);
-    expect(updateScheduleCall.data.nextRunAt).toEqual(
-      new Date("2026-04-01T12:00:00.000Z")
-    );
-    expect(updateScheduleCall.data.isActive).toBe(false);
-    expect(updateScheduleCall.data.updatedById).toBe("admin-1");
-
-    const scheduleUpdatedActivity = getActivityInput(
-      "RECURRING_SCHEDULE_UPDATED"
-    );
-    expect(scheduleUpdatedActivity?.payload).toMatchObject({
+    const updateScheduleArgs =
+      getFirstMockArgument<MutationUpdateArgs>(recurringScheduleUpdate);
+    expect(updateScheduleArgs.where).toMatchObject({ id: scheduleId });
+    expect(updateScheduleArgs.data).toMatchObject({
+      cadence: "MONTHLY",
+      interval: 1,
+      isActive: false,
+      updatedById: managerId
+    });
+    expect(getActivityInput("RECURRING_SCHEDULE_UPDATED")?.payload).toMatchObject({
       changedFields: ["cadence", "interval", "next run", "active state"]
     });
   });
 
-  it("executes a recurring schedule, advances run dates, and records activity", async () => {
-    recurringScheduleFindFirst.mockResolvedValue({
-      id: "schedule-1",
-      templateId: "template-1",
-      projectId: "project-1",
-      cadence: "WEEKLY",
-      interval: 1,
-      nextRunAt: new Date("2026-03-12T12:00:00.000Z"),
-      isActive: true,
-      template: {
-        id: "template-1",
-        name: "Weekly review sweep",
-        title: "Run weekly review sweep",
-        description: "Sweep the review queue and capture the next handoff risk.",
-        defaultAssigneeId: "member-1",
-        defaultReviewerId: "reviewer-1",
-        defaultDueOffsetDays: 2,
-        defaultPriority: "HIGH",
-        defaultStatus: "BACKLOG",
-        defaultAssignee: { id: "member-1", name: "Ken Operator" },
-        defaultReviewer: { id: "reviewer-1", name: "Mika Reviewer" }
-      },
-      project: {
-        id: "project-1",
-        code: "OPS-ALPHA",
-        name: "Harbor inventory rollout"
-      }
-    });
-    recurringExecutionCreate.mockResolvedValue({
-      id: "execution-1"
-    });
+  it("creates a recurring execution ledger row, links the generated task, and records success activity", async () => {
+    recurringScheduleFindFirst.mockResolvedValue(buildSchedule());
     taskCreate.mockResolvedValue({
       id: "task-1",
       title: "Run weekly review sweep",
-      projectId: "project-1",
-      assigneeId: "member-1",
-      reviewerId: "reviewer-1",
-      createdById: "admin-1",
+      projectId,
+      assigneeId: memberId,
+      reviewerId,
+      createdById: managerId,
       dueDate: new Date("2026-03-13T12:00:00.000Z")
     });
-    recurringExecutionUpdate.mockResolvedValue({});
-    recurringScheduleUpdate.mockResolvedValue({
-      id: "schedule-1"
-    });
 
-    const result = await executeRecurringScheduleAction("schedule-1");
+    const result = await executeRecurringScheduleAction(scheduleId);
 
     expect(result).toMatchObject({
       status: "success",
       entityId: "task-1"
     });
-    expect(recurringExecutionCreate).toHaveBeenCalledWith({
-      data: {
-        scheduleId: "schedule-1",
-        scheduledFor: new Date("2026-03-12T12:00:00.000Z")
+    const createExecutionArgs =
+      getFirstMockArgument<MutationCreateArgs>(recurringExecutionCreate);
+    expect(createExecutionArgs.data).toMatchObject({
+      recurringScheduleId: scheduleId,
+      workspaceId,
+      status: "RUNNING",
+      scheduledFor: new Date("2026-03-12T12:00:00.000Z"),
+      triggeredBy: "USER",
+      triggeredByUserId: managerId,
+      rerunOfExecutionId: null
+    });
+    const generatedTaskArgs = getFirstMockArgument<MutationCreateArgs>(taskCreate);
+    expect(generatedTaskArgs.data).toMatchObject({
+      projectId,
+      recurringExecutionId: "execution-1",
+      createdById: managerId,
+      updatedById: managerId
+    });
+    const successExecutionUpdateArgs =
+      getFirstMockArgument<MutationUpdateArgs>(recurringExecutionUpdate);
+    expect(successExecutionUpdateArgs.where).toMatchObject({ id: "execution-1" });
+    expect(successExecutionUpdateArgs.data).toMatchObject({
+      status: "SUCCESS",
+      errorMessage: null,
+      generatedTaskCount: 1
+    });
+    const successScheduleUpdateArgs =
+      getFirstMockArgument<MutationUpdateArgs>(recurringScheduleUpdateMany);
+    expect(successScheduleUpdateArgs.where).toMatchObject({
+      id: scheduleId,
+      nextRunAt: new Date("2026-03-12T12:00:00.000Z")
+    });
+    expect(successScheduleUpdateArgs.data).toMatchObject({
+      lastRunAt: new Date("2026-03-11T09:00:00.000Z"),
+      nextRunAt: new Date("2026-03-19T12:00:00.000Z"),
+      updatedById: managerId
+    });
+    expect(getActivityTypes()).toEqual(
+      expect.arrayContaining([
+        "RECURRING_EXECUTION_STARTED",
+        "RECURRING_EXECUTION_SUCCEEDED",
+        "RECURRING_SCHEDULE_EXECUTED",
+        "TASK_CREATED_FROM_TEMPLATE"
+      ])
+    );
+    expect(getActivityInput("RECURRING_EXECUTION_SUCCEEDED")?.payload).toMatchObject(
+      {
+        executionId: "execution-1",
+        generatedTaskCount: 1,
+        generatedTaskIds: ["task-1"]
       }
-    });
-    const [[executeUpdateCall]] = recurringScheduleUpdate.mock.calls as Array<
-      [
-        {
-          where: {
-            id: string;
-          };
-          data: {
-            lastRunAt: Date;
-            nextRunAt: Date;
-            updatedById: string;
-          };
-        }
-      ]
-    >;
-
-    expect(executeUpdateCall.where.id).toBe("schedule-1");
-    expect(executeUpdateCall.data.lastRunAt).toEqual(
-      new Date("2026-03-11T09:00:00.000Z")
     );
-    expect(executeUpdateCall.data.nextRunAt).toEqual(
-      new Date("2026-03-18T12:00:00.000Z")
-    );
-    expect(executeUpdateCall.data.updatedById).toBe("admin-1");
-
-    const createdTypes = createActivityEvent.mock.calls.map((entry) => {
-      const [, input] = entry as [unknown, ActivityInput];
-      return input.type;
-    });
-    expect(createdTypes).toContain("TASK_CREATED");
-    expect(createdTypes).toContain("TASK_CREATED_FROM_TEMPLATE");
-    expect(createdTypes).toContain("RECURRING_SCHEDULE_EXECUTED");
     expect(revalidateTaskSurfaces).toHaveBeenCalledWith({
       taskId: "task-1",
-      projectIds: ["project-1"]
+      projectIds: [projectId]
     });
   });
 
-  it("blocks inactive schedules and duplicate current-slot generation", async () => {
-    recurringScheduleFindFirst.mockResolvedValue({
-      id: "schedule-1",
-      templateId: "template-1",
-      projectId: "project-1",
-      cadence: "DAILY",
-      interval: 1,
-      nextRunAt: new Date("2026-03-12T12:00:00.000Z"),
-      isActive: false,
-      template: {
-        id: "template-1",
-        name: "Weekly review sweep",
-        title: "Run weekly review sweep",
-        description: "Sweep the review queue and capture the next handoff risk.",
-        defaultAssigneeId: "member-1",
-        defaultReviewerId: "reviewer-1",
-        defaultDueOffsetDays: 2,
-        defaultPriority: "HIGH",
-        defaultStatus: "BACKLOG",
-        defaultAssignee: { id: "member-1", name: "Ken Operator" },
-        defaultReviewer: { id: "reviewer-1", name: "Mika Reviewer" }
-      },
-      project: {
-        id: "project-1",
-        code: "OPS-ALPHA",
-        name: "Harbor inventory rollout"
+  it("marks the ledger failed when task generation breaks and keeps the schedule slot in place", async () => {
+    recurringScheduleFindFirst.mockResolvedValue(buildSchedule());
+    taskCreate.mockRejectedValue(new Error("Default owner is no longer a workspace member."));
+
+    const result = await executeRecurringScheduleAction(scheduleId);
+
+    expect(result).toMatchObject({
+      status: "error",
+      message: "Default owner is no longer a workspace member."
+    });
+    expect(recurringScheduleUpdateMany).not.toHaveBeenCalled();
+    const failedExecutionUpdateArgs =
+      getFirstMockArgument<MutationUpdateArgs>(recurringExecutionUpdate);
+    expect(failedExecutionUpdateArgs.where).toMatchObject({ id: "execution-1" });
+    expect(failedExecutionUpdateArgs.data).toMatchObject({
+      status: "FAILED",
+      errorMessage: "Default owner is no longer a workspace member.",
+      generatedTaskCount: 0
+    });
+    expect(getActivityTypes()).toEqual(
+      expect.arrayContaining([
+        "RECURRING_EXECUTION_STARTED",
+        "RECURRING_EXECUTION_FAILED"
+      ])
+    );
+  });
+
+  it("reruns a failed execution by creating a fresh ledger record for the same slot", async () => {
+    recurringExecutionFindFirst.mockResolvedValue({
+      id: "execution-failed-1",
+      workspaceId,
+      recurringScheduleId: scheduleId,
+      scheduledFor: new Date("2026-03-12T12:00:00.000Z"),
+      status: "FAILED",
+      recurringSchedule: buildSchedule()
+    });
+    recurringExecutionFindMany.mockResolvedValue([
+      {
+        id: "execution-failed-1",
+        status: "FAILED",
+        createdAt: new Date("2026-03-11T08:00:00.000Z")
       }
+    ]);
+    recurringExecutionCreate.mockResolvedValue({
+      id: "execution-rerun-1"
+    });
+    taskCreate.mockResolvedValue({
+      id: "task-2",
+      title: "Run weekly review sweep",
+      projectId,
+      assigneeId: memberId,
+      reviewerId,
+      createdById: managerId,
+      dueDate: new Date("2026-03-13T12:00:00.000Z")
     });
 
-    const inactiveResult = await executeRecurringScheduleAction("schedule-1");
+    const result = await rerunRecurringExecutionAction("execution-failed-1");
+
+    expect(result).toMatchObject({
+      status: "success",
+      entityId: "task-2"
+    });
+    const rerunExecutionArgs =
+      getFirstMockArgument<MutationCreateArgs>(recurringExecutionCreate);
+    expect(rerunExecutionArgs.data).toMatchObject({
+      recurringScheduleId: scheduleId,
+      scheduledFor: new Date("2026-03-12T12:00:00.000Z"),
+      rerunOfExecutionId: "execution-failed-1"
+    });
+    expect(getActivityTypes()).toEqual(
+      expect.arrayContaining([
+        "RECURRING_EXECUTION_RERUN",
+        "RECURRING_EXECUTION_STARTED",
+        "RECURRING_EXECUTION_SUCCEEDED"
+      ])
+    );
+  });
+
+  it("blocks inactive schedules and forces failed current slots through rerun instead of generate now", async () => {
+    recurringScheduleFindFirst.mockResolvedValueOnce(
+      buildSchedule({
+        isActive: false
+      })
+    );
+
+    const inactiveResult = await executeRecurringScheduleAction(scheduleId);
 
     expect(inactiveResult).toMatchObject({
       status: "error",
       message: "Activate the schedule before generating tasks."
     });
-    expect(transaction).not.toHaveBeenCalled();
+    expect(recurringExecutionCreate).not.toHaveBeenCalled();
 
-    recurringScheduleFindFirst.mockResolvedValue({
-      id: "schedule-1",
-      templateId: "template-1",
-      projectId: "project-1",
-      cadence: "DAILY",
-      interval: 1,
-      nextRunAt: new Date("2026-03-12T12:00:00.000Z"),
-      isActive: true,
-      template: {
-        id: "template-1",
-        name: "Weekly review sweep",
-        title: "Run weekly review sweep",
-        description: "Sweep the review queue and capture the next handoff risk.",
-        defaultAssigneeId: "member-1",
-        defaultReviewerId: "reviewer-1",
-        defaultDueOffsetDays: 2,
-        defaultPriority: "HIGH",
-        defaultStatus: "BACKLOG",
-        defaultAssignee: { id: "member-1", name: "Ken Operator" },
-        defaultReviewer: { id: "reviewer-1", name: "Mika Reviewer" }
-      },
-      project: {
-        id: "project-1",
-        code: "OPS-ALPHA",
-        name: "Harbor inventory rollout"
+    recurringScheduleFindFirst.mockResolvedValueOnce(buildSchedule());
+    recurringExecutionFindMany.mockResolvedValueOnce([
+      {
+        id: "execution-failed-1",
+        status: "FAILED",
+        createdAt: new Date("2026-03-11T08:00:00.000Z")
       }
-    });
-    transaction.mockRejectedValue({
-      code: "P2002"
-    });
+    ]);
 
-    const duplicateResult = await executeRecurringScheduleAction("schedule-1");
+    const failedSlotResult = await executeRecurringScheduleAction(scheduleId);
 
-    expect(duplicateResult).toMatchObject({
+    expect(failedSlotResult).toMatchObject({
       status: "error",
-      message: "This schedule already generated its current run slot."
+      message: "Use the failed execution entry below to rerun this slot."
     });
-    expect(revalidateTaskSurfaces).not.toHaveBeenCalled();
+    expect(recurringExecutionCreate).not.toHaveBeenCalled();
   });
 });

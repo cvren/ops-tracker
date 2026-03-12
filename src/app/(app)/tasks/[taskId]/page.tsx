@@ -8,6 +8,7 @@ import { TaskCommentForm } from "@/components/tasks/task-comment-form";
 import { TaskEditForm } from "@/components/tasks/task-edit-form";
 import { TaskStatusButtons } from "@/components/tasks/task-status-buttons";
 import {
+  RecurringExecutionStatusBadge,
   TaskPriorityBadge,
   TaskStatusBadge
 } from "@/components/status-badges";
@@ -246,6 +247,37 @@ export default async function TaskDetailPage({
         </div>
 
         <div className="space-y-6">
+          {task.recurringExecution ? (
+            <Panel className="space-y-4">
+              <div className="space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-[0.28em] text-accent">
+                  Execution origin
+                </p>
+                <h2 className="text-2xl font-semibold text-ink">
+                  This task came from a recurring execution
+                </h2>
+              </div>
+              <div className="flex flex-wrap items-center gap-3">
+                <RecurringExecutionStatusBadge
+                  status={task.recurringExecution.status}
+                />
+                <p className="text-sm text-ink/70">
+                  {task.recurringExecution.recurringSchedule.project.code} ·{" "}
+                  {task.recurringExecution.recurringSchedule.template.name}
+                </p>
+              </div>
+              <p className="text-sm leading-6 text-ink/70">
+                Started {formatDateTime(task.recurringExecution.startedAt)} and
+                generated this task through the recurring ledger.
+              </p>
+              <Link
+                href={`/templates#execution-${task.recurringExecution.id}`}
+                className="inline-flex min-h-11 items-center justify-center rounded-full bg-white/80 px-5 py-2 text-sm font-semibold text-accent ring-1 ring-black/10 transition hover:bg-white hover:text-ink"
+              >
+                Open execution record
+              </Link>
+            </Panel>
+          ) : null}
           <Panel className="space-y-5">
             <div className="space-y-2">
               <p className="text-xs font-semibold uppercase tracking-[0.28em] text-accent">

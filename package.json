@@ -1,6 +1,6 @@
 {
   "name": "ops-tracker",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "packageManager": "pnpm@10.19.0",
   "engines": {
@@ -16,7 +16,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "db:seed": "tsx prisma/seed.ts",
+    "recurring:tick": "node --env-file=.env --import tsx scripts/recurring-tick.ts",
+    "db:seed": "node --env-file=.env --import tsx prisma/seed.ts",
     "db:reset": "pnpm exec prisma migrate reset --force --skip-generate",
     "format": "prettier --write .",
     "format:check": "prettier --check ."

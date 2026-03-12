@@ -449,6 +449,29 @@ export async function getTaskById(taskId: string) {
           name: true
         }
       },
+      recurringExecution: {
+        include: {
+          recurringSchedule: {
+            select: {
+              id: true,
+              template: {
+                select: {
+                  id: true,
+                  name: true,
+                  title: true
+                }
+              },
+              project: {
+                select: {
+                  id: true,
+                  code: true,
+                  name: true
+                }
+              }
+            }
+          }
+        }
+      },
       reviewRequestedBy: {
         select: {
           id: true,

@@ -2,11 +2,12 @@ import {
   BlockedCategory,
   ProjectStatus,
   RecurringCadence,
+  RecurringExecutionStatus,
   TaskPriority,
   TaskStatus,
   WorkspaceRole
 } from "@prisma/client";
-import type { ActivityEventType } from "@prisma/client";
+import type { ActivityEventType, RecurringTriggerSource } from "@prisma/client";
 
 export const projectStatusOptions = [
   { value: ProjectStatus.ACTIVE, label: "Active" },
@@ -52,8 +53,25 @@ export const recurringCadenceLabels = Object.fromEntries(
   recurringCadenceOptions.map((option) => [option.value, option.label])
 ) as Record<RecurringCadence, string>;
 
+export const recurringExecutionStatusOptions = [
+  { value: RecurringExecutionStatus.RUNNING, label: "Running" },
+  { value: RecurringExecutionStatus.SUCCESS, label: "Success" },
+  { value: RecurringExecutionStatus.FAILED, label: "Failed" },
+  { value: RecurringExecutionStatus.SKIPPED, label: "Skipped" }
+] as const;
+
+export const recurringExecutionStatusLabels = Object.fromEntries(
+  recurringExecutionStatusOptions.map((option) => [option.value, option.label])
+) as Record<RecurringExecutionStatus, string>;
+
+export const recurringTriggerSourceLabels = {
+  SYSTEM: "System",
+  USER: "User"
+} as const satisfies Record<RecurringTriggerSource, string>;
+
 export const workspaceRoleOptions = [
   { value: WorkspaceRole.ADMIN, label: "Admin" },
+  { value: WorkspaceRole.MANAGER, label: "Manager" },
   { value: WorkspaceRole.MEMBER, label: "Member" },
   { value: WorkspaceRole.VIEWER, label: "Viewer" }
 ] as const;
@@ -160,8 +178,19 @@ export const taskPriorityClasses: Record<TaskPriority, string> = {
 
 export const workspaceRoleClasses: Record<WorkspaceRole, string> = {
   ADMIN: "bg-sky-100 text-sky-900",
+  MANAGER: "bg-amber-100 text-amber-900",
   MEMBER: "bg-emerald-100 text-emerald-900",
   VIEWER: "bg-stone-200 text-stone-800"
+};
+
+export const recurringExecutionStatusClasses: Record<
+  RecurringExecutionStatus,
+  string
+> = {
+  RUNNING: "bg-sky-100 text-sky-900",
+  SUCCESS: "bg-emerald-100 text-emerald-900",
+  FAILED: "bg-rose-100 text-rose-900",
+  SKIPPED: "bg-amber-100 text-amber-900"
 };
 
 export const activityEventLabels: Record<ActivityEventType, string> = {
@@ -185,9 +214,16 @@ export const activityEventLabels: Record<ActivityEventType, string> = {
   RECURRING_SCHEDULE_CREATED: "Recurring schedule created",
   RECURRING_SCHEDULE_UPDATED: "Recurring schedule updated",
   RECURRING_SCHEDULE_EXECUTED: "Recurring schedule executed",
+  RECURRING_EXECUTION_STARTED: "Recurring execution started",
+  RECURRING_EXECUTION_SUCCEEDED: "Recurring execution succeeded",
+  RECURRING_EXECUTION_FAILED: "Recurring execution failed",
+  RECURRING_EXECUTION_RERUN: "Recurring execution rerun",
+  RECURRING_EXECUTION_SKIPPED: "Recurring execution skipped",
   COMMENT_CREATED: "Comment added",
   COMMENT_MENTIONED: "Mentioned teammate",
   MEMBERSHIP_ADDED: "Member added",
   MEMBERSHIP_ROLE_CHANGED: "Role changed",
+  MANAGER_ROLE_GRANTED: "Manager access granted",
+  MANAGER_ROLE_REVOKED: "Manager access revoked",
   MEMBERSHIP_REMOVED: "Member removed"
 };

@@ -15,6 +15,21 @@ import {
 import { workspaceRoleLabels } from "@/lib/constants";
 import { requireWorkspaceRole } from "@/lib/workspace";
 
+function getManagerRoleChangeEventType(input: {
+  currentRole: "ADMIN" | "MANAGER" | "MEMBER" | "VIEWER";
+  nextRole: "ADMIN" | "MANAGER" | "MEMBER" | "VIEWER";
+}) {
+  if (input.currentRole !== "MANAGER" && input.nextRole === "MANAGER") {
+    return ActivityEventType.MANAGER_ROLE_GRANTED;
+  }
+
+  if (input.currentRole === "MANAGER" && input.nextRole !== "MANAGER") {
+    return ActivityEventType.MANAGER_ROLE_REVOKED;
+  }
+
+  return null;
+}
+
 async function ensureNotLastAdmin(workspaceId: string, membershipId: string) {
   const membership = await prisma.membership.findUnique({
     where: {
@@ -115,9 +130,26 @@ export async function addWorkspaceMemberAction(
         type: ActivityEventType.MEMBERSHIP_ADDED,
         payload: {
           membershipId: membership.id,
+          targetUserId: membership.userId,
+          role: parsed.data.role,
           summary: `added ${user.name} as ${workspaceRoleLabels[parsed.data.role]}`
         }
       });
+
+      if (parsed.data.role === "MANAGER") {
+        await createActivityEvent(tx, {
+          workspaceId: context.workspace.id,
+          actorId: context.user.id,
+          type: ActivityEventType.MANAGER_ROLE_GRANTED,
+          payload: {
+            membershipId: membership.id,
+            targetUserId: membership.userId,
+            previousRole: null,
+            nextRole: parsed.data.role,
+            summary: `granted manager access to ${user.name}`
+          }
+        });
+      }
     });
 
     revalidatePath("/workspace");
@@ -188,6 +220,11 @@ export async function updateWorkspaceMemberRoleAction(
     }
 
     await prisma.$transaction(async (tx) => {
+      const managerRoleChangeEventType = getManagerRoleChangeEventType({
+        currentRole: membership.role,
+        nextRole: parsed.data.role
+      });
+
       await tx.membership.update({
         where: {
           id: membership.id
@@ -203,9 +240,31 @@ export async function updateWorkspaceMemberRoleAction(
         type: ActivityEventType.MEMBERSHIP_ROLE_CHANGED,
         payload: {
           membershipId: membership.id,
+          targetUserId: membership.userId,
+          previousRole: membership.role,
+          nextRole: parsed.data.role,
           summary: `changed ${membership.user.name} to ${workspaceRoleLabels[parsed.data.role]}`
         }
       });
+
+      if (managerRoleChangeEventType) {
+        await createActivityEvent(tx, {
+          workspaceId: context.workspace.id,
+          actorId: context.user.id,
+          type: managerRoleChangeEventType,
+          payload: {
+            membershipId: membership.id,
+            targetUserId: membership.userId,
+            previousRole: membership.role,
+            nextRole: parsed.data.role,
+            summary:
+              managerRoleChangeEventType ===
+              ActivityEventType.MANAGER_ROLE_GRANTED
+                ? `granted manager access to ${membership.user.name}`
+                : `revoked manager access from ${membership.user.name}`
+          }
+        });
+      }
     });
 
     revalidatePath("/workspace");

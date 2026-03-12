@@ -14,12 +14,14 @@ type WorkspaceMemberRoleFormProps = {
   currentRole: string;
   disabled?: boolean;
   membershipId: string;
+  memberName: string;
 };
 
 export function WorkspaceMemberRoleForm({
   currentRole,
   disabled = false,
-  membershipId
+  membershipId,
+  memberName
 }: WorkspaceMemberRoleFormProps) {
   const router = useRouter();
   const [state, formAction] = useActionState(
@@ -37,7 +39,12 @@ export function WorkspaceMemberRoleForm({
     <form action={formAction} className="space-y-2">
       <input type="hidden" name="membershipId" value={membershipId} />
       <div className="flex flex-col gap-2 sm:flex-row">
-        <Select name="role" defaultValue={currentRole} disabled={disabled}>
+        <Select
+          name="role"
+          defaultValue={currentRole}
+          disabled={disabled}
+          aria-label={`Role for ${memberName}`}
+        >
           {workspaceRoleOptions.map((role) => (
             <option key={role.value} value={role.value}>
               {role.label}

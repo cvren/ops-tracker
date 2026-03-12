@@ -1,10 +1,6 @@
 import Link from "next/link";
 import type { Route } from "next";
-import {
-  TaskPriority,
-  TaskStatus,
-  WorkspaceRole
-} from "@prisma/client";
+import { TaskPriority, TaskStatus } from "@prisma/client";
 
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
@@ -22,7 +18,8 @@ import {
 } from "@/lib/constants";
 import { getAssignableUsers, listProjects, listTasks } from "@/lib/data";
 import { getManagerWorkloadData } from "@/lib/manager-data";
-import { parseTaskView } from "@/lib/task-views";
+import { canManageManagerConsole } from "@/lib/permissions";
+import { isManagerTaskView, parseTaskView } from "@/lib/task-views";
 import { getCurrentWorkspaceContext } from "@/lib/workspace";
 
 type TasksPageProps = {
@@ -55,7 +52,9 @@ export default async function TasksPage({ searchParams }: TasksPageProps) {
     : undefined;
 
   const context = await getCurrentWorkspaceContext();
-  const isAdmin = context.membership.role === WorkspaceRole.ADMIN;
+  const canAccessManagerConsole = canManageManagerConsole(
+    context.membership.role
+  );
   const bulkEnabledViews = new Set([
     "unassigned",
     "overdue",
@@ -64,27 +63,29 @@ export default async function TasksPage({ searchParams }: TasksPageProps) {
     "due-this-week",
     "high-risk"
   ]);
-  const bulkEnabled = Boolean(isAdmin && view && bulkEnabledViews.has(view));
+  const bulkEnabled = Boolean(
+    canAccessManagerConsole && view && bulkEnabledViews.has(view)
+  );
   const bulkViewLabel = bulkEnabled && view ? taskViewLabels[view] : null;
 
-  if (!isAdmin && view && view !== "my-tasks" && view !== "needs-review" && view !== "overdue" && view !== "unassigned") {
+  if (!canAccessManagerConsole && isManagerTaskView(view)) {
     return (
       <div className="space-y-8">
         <PageHeader
           eyebrow="Tasks"
           title="Work the queue with ownership and review context."
-          description="Manager views are admin-only. Personal queues and task detail remain available for members and viewers."
+          description="Manager views are available to workspace admins and managers. Personal queues and task detail remain available for members and viewers."
         />
         <Panel className="space-y-3">
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">
             Manager view locked
           </p>
           <h2 className="text-2xl font-semibold text-ink">
-            This queue is available to workspace admins only.
+            This queue is available to workspace admins and managers.
           </h2>
           <p className="text-sm text-ink/70">
-            Use your personal saved views, or ask an admin to clear the queue
-            from the manager console.
+            Use your personal saved views, or ask an admin or delegated manager
+            to clear the queue from the manager console.
           </p>
         </Panel>
       </div>
@@ -94,7 +95,9 @@ export default async function TasksPage({ searchParams }: TasksPageProps) {
   const [projects, users, workload, tasks] = await Promise.all([
     listProjects(),
     getAssignableUsers(),
-    isAdmin && view === "workload" ? getManagerWorkloadData() : Promise.resolve([]),
+    canAccessManagerConsole && view === "workload"
+      ? getManagerWorkloadData()
+      : Promise.resolve([]),
     view === "workload"
       ? Promise.resolve([])
       : listTasks({
@@ -114,7 +117,7 @@ export default async function TasksPage({ searchParams }: TasksPageProps) {
       : "Work the queue with ownership and review context.";
   const headerDescription = bulkEnabled
     ? "Select the risky tasks on this queue and clear them in one pass without opening each detail page."
-    : isAdmin
+    : canAccessManagerConsole
       ? "Filter the shared task list by queue, owner, reviewer, due date, and project so the next risky pocket of work is obvious."
       : "Filter the shared task list by saved view, reviewer, owner, deadline, and project so handoffs do not drift into Slack or memory.";
 
@@ -152,7 +155,7 @@ export default async function TasksPage({ searchParams }: TasksPageProps) {
               </Link>
             ))}
           </div>
-          {isAdmin ? (
+          {canAccessManagerConsole ? (
             <div className="flex flex-wrap gap-2">
               {managerTaskViewOptions.map((option) => (
                 <Link
