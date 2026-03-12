@@ -1,10 +1,10 @@
 # ops-tracker
 
-`ops-tracker` has shipped `v0.3.0`: the `v0.2.0` collaboration flow plus the full `v0.3.0` manager-console stack. The current branch head is the `ops-tracker v0.4.0 Phase 4 — Release Closeout` release-ready candidate with `package.json` prepared at `0.4.0`, while the latest shipped release marker remains `v0.3.0` until PR / merge / tag / GitHub Release complete.
+`ops-tracker` has shipped `v0.4.0`: the existing collaboration flow plus the full `v0.4.0` manager delegation and recurring execution baseline. The next development handoff starts at `docs/handoffs/v0.4.0-to-v0.5.0.md`.
 
-See `docs/contracts/v0.4.0-operating-contract.md` for the `v0.4.0` contract baseline and `docs/handoffs/v0.3.0-to-v0.4.0.md` for the current handoff note.
+See `docs/contracts/v0.4.0-operating-contract.md` for the `v0.4.0` contract baseline, `docs/handoffs/v0.3.0-to-v0.4.0.md` for the shipped release handoff, and `docs/handoffs/v0.4.0-to-v0.5.0.md` for the next line of work.
 
-## Shipped scope in v0.3.0
+## Foundation retained from v0.3.0
 
 - Single `Workspace` + `Membership` collaboration boundary
 - Workspace roles in the shipped release: `admin`, `member`, `viewer`
@@ -17,7 +17,7 @@ See `docs/contracts/v0.4.0-operating-contract.md` for the `v0.4.0` contract base
 - Admin-only task templates and recurring schedules with manual `Generate now`
 - Template and recurring activity trace on task timelines and the templates console
 
-## Release-ready scope for v0.4.0
+## Shipped scope in v0.4.0
 
 - Workspace roles in the current repo runtime: `admin`, `manager`, `member`, `viewer`
 - Admin-managed role assignment for promoting a workspace member to `manager` and demoting a manager back to `member`
@@ -34,8 +34,8 @@ See `docs/contracts/v0.4.0-operating-contract.md` for the `v0.4.0` contract base
 - Duplicate-safe slot claims are enforced for `RUNNING`, `SUCCESS`, and `SKIPPED` answers on the same schedule slot
 - Fresh-seed scheduled truth is: `recurring:tick` creates one new `SYSTEM` success for `Scheduled inventory digest`, reports one skipped due slot for `Recovery retry drill`, and leaves the seeded failed row visible for rerun
 - `SKIPPED` remains part of the contract and seeded UI history, but the current runtime does not expose a manager skip action and tick suppression does not create a fresh skip ledger row
-- Current release-ready validation covers install, migrations, seed, lint, typecheck, unit tests, Playwright e2e, build, and `recurring:tick`
-- GitHub-hosted `ci` has been observed green on the release-ready branch head with both `validate` and `e2e` succeeding
+- Current validation baseline covers install, migrations, seed, lint, typecheck, unit tests, Playwright e2e, build, and `recurring:tick`
+- GitHub-hosted `ci` has been observed green for the shipped `v0.4.0` release line with both `validate` and `e2e` succeeding
 
 ## Quick start
 
@@ -89,13 +89,9 @@ corepack pnpm build
 corepack pnpm recurring:tick
 ```
 
-## Release closeout
+## Current release state
 
-- Current branch-head package version: `0.4.0`
-- Current release branch: `codex/v0.4.0-phase-4-closeout`
-- Latest shipped tag: `v0.3.0`
-- Human release steps still required:
-  - open the release PR
-  - merge to `main`
-  - tag `v0.4.0`
-  - publish the GitHub Release from `RELEASE_NOTES_v0.4.0.md`
+- Current shipped release: `v0.4.0`
+- Current package version: `0.4.0`
+- Published release notes: `RELEASE_NOTES_v0.4.0.md`
+- Next line of work: `docs/handoffs/v0.4.0-to-v0.5.0.md`
