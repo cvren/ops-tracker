@@ -1,6 +1,6 @@
 # RELEASE NOTES v0.4.0
 
-`v0.4.0` is release-ready on the current branch head and not shipped yet. The branch head carries `package.json` version `0.4.0`, while the latest shipped release marker remains `v0.3.0` until PR / merge / tag `v0.4.0` / GitHub Release publication complete.
+`v0.4.0` is published and is the current shipped release. This release note reflects the shipped `0.4.0` baseline and the verified release state recorded in the repo.
 
 ## Included in v0.4.0
 
@@ -43,7 +43,7 @@
 - `SKIPPED` remains contract-valid and UI-visible, but there is still no manager skip action and tick-suppression skips do not create fresh ledger rows
 - Execution history still lives in the templates console and task origin panel; there is no dedicated cross-schedule execution history screen
 
-## Release-ready validation
+## Verified release baseline
 
 - Local validation target:
   - `corepack pnpm install`
@@ -62,11 +62,10 @@
   - `Succeeded: 1`
   - `Failed: 0`
   - `Skipped: 1`
-- GitHub-hosted `ci` has been observed green on the release-ready branch head with both `validate` and `e2e` succeeding
+- GitHub-hosted `ci` was observed green for the shipped `v0.4.0` release line with both `validate` and `e2e` succeeding
 
-## Human release steps
+## Post-release state
 
-1. Push the release-ready branch head and confirm GitHub-hosted `validate` and `e2e` are green.
-2. Open and merge the `v0.4.0` PR into `main`.
-3. Create tag `v0.4.0` on the merged commit and push the tag.
-4. Publish the GitHub Release using this file as the release body.
+- Current shipped release: `v0.4.0`
+- Current package version in the repo: `0.4.0`
+- Next implementation line: `v0.5.0`
