@@ -25,20 +25,34 @@ async function signOut(page: Page) {
 }
 
 function runRecurringTick() {
-  execFileSync("corepack", ["pnpm", "recurring:tick"], {
-    cwd: process.cwd(),
-    env: process.env,
-    stdio: "pipe"
-  });
+  execFileSync(
+    "node",
+    ["--env-file=.env.example", "--import", "tsx", "scripts/recurring-tick.ts"],
+    {
+      cwd: process.cwd(),
+      env: process.env,
+      stdio: "pipe"
+    }
+  );
 }
 
 function reseedDatabase() {
-  execFileSync("corepack", ["pnpm", "db:seed"], {
-    cwd: process.cwd(),
-    env: process.env,
-    stdio: "pipe"
-  });
+  execFileSync(
+    "node",
+    ["--env-file=.env.example", "--import", "tsx", "prisma/seed.ts"],
+    {
+      cwd: process.cwd(),
+      env: process.env,
+      stdio: "pipe"
+    }
+  );
 }
+
+test.beforeEach(() => {
+  // Keep every end-to-end scenario on the same canonical demo baseline so
+  // historical compatibility flows do not leak state into one another.
+  reseedDatabase();
+});
 
 test.afterAll(() => {
   // Restore the canonical demo baseline so post-suite recurring:tick validation
@@ -81,7 +95,6 @@ test("team can execute the v0.2.0 collaboration flow end-to-end", async ({
   await expect(
     page.getByRole("link", { name: /^Due Today \d+/ })
   ).toBeVisible();
-
   await page.goto("/workspace");
   await expect(page).toHaveURL(/\/workspace$/);
   await expect(
@@ -606,6 +619,156 @@ test("manager can inspect scheduled execution history and rerun a failed schedul
   ).toBeVisible();
 });
 
+test("admin can create and edit commitment policies that change manager risk metadata", async ({
+  page
+}) => {
+  test.setTimeout(120000);
+
+  const suffix = Date.now().toString().slice(-6);
+  const policyName = `Alpha review watch ${suffix}`;
+
+  await signIn(page, adminEmail);
+  await page.goto("/commitments");
+
+  await expect(
+    page.getByRole("heading", {
+      name: "Decide what counts as a violation before it becomes work."
+    })
+  ).toBeVisible();
+
+  const createPolicyPanel = page
+    .getByRole("heading", { name: "Define a commitment boundary" })
+    .locator("xpath=ancestor::div[contains(@class,'rounded-4xl')][1]");
+
+  await createPolicyPanel.getByLabel("Policy name").fill(policyName);
+  await createPolicyPanel
+    .getByLabel("Commitment kind")
+    .selectOption("REVIEW_STALE");
+  await createPolicyPanel.getByLabel("Scope type").selectOption("PROJECT");
+  await createPolicyPanel
+    .getByLabel("Project scope")
+    .selectOption({ label: "OPS-ALPHA · Harbor inventory rollout" });
+  await createPolicyPanel.getByLabel("Threshold value").fill("30");
+  await createPolicyPanel.getByLabel("Threshold unit").selectOption("minutes");
+  await createPolicyPanel.getByLabel("Severity").selectOption("HIGH");
+  await createPolicyPanel.getByRole("button", { name: "Create policy" }).click();
+
+  await expect(page.getByRole("heading", { name: policyName })).toBeVisible();
+
+  await page.goto("/tasks?view=review-queue");
+  const alphaReviewCard = page
+    .getByRole("link", { name: "Prepare dock handoff checklist" })
+    .locator("xpath=ancestor::div[contains(@class,'rounded-4xl')][1]");
+
+  await expect(alphaReviewCard.getByText(`Source: ${policyName}`)).toBeVisible();
+
+  await page.goto("/commitments");
+  const policyCard = page
+    .getByRole("heading", { name: policyName })
+    .locator("xpath=ancestor::div[contains(@class,'rounded-4xl')][1]");
+  await policyCard.locator("summary").click();
+
+  const editPolicyPanel = policyCard.getByRole("heading", { name: policyName })
+    .locator("xpath=ancestor::div[contains(@class,'rounded-4xl')][1]");
+
+  await editPolicyPanel.getByLabel("Threshold value").fill("6");
+  await editPolicyPanel.getByLabel("Threshold unit").selectOption("hours");
+  await editPolicyPanel.getByRole("button", { name: "Save policy" }).click();
+  await expect(
+    editPolicyPanel.getByText(`Policy ${policyName} updated.`)
+  ).toBeVisible();
+
+  await page.goto("/tasks?view=review-queue");
+  await expect(alphaReviewCard.getByText(`Source: ${policyName}`)).toHaveCount(0);
+});
+
+test("manager can open the exception queue and drill into the source task", async ({
+  page
+}) => {
+  test.setTimeout(120000);
+
+  reseedDatabase();
+
+  await signIn(page, managerEmail);
+  await page.goto("/exceptions");
+
+  await expect(
+    page.getByRole("heading", {
+      name: "Receive the open exception ledger and move it instead of memorizing it."
+    })
+  ).toBeVisible();
+  await expect(page.getByText("Actionable now")).toBeVisible();
+
+  const overdueExceptionCard = page
+    .getByRole("heading", {
+      name: "Overdue: Close scanner parity gap for west dock"
+    })
+    .locator("xpath=ancestor::div[contains(@class,'rounded-4xl')][1]");
+
+  await expect(overdueExceptionCard).toContainText("Workspace overdue watch");
+  await overdueExceptionCard
+    .getByRole("link", { name: "Open task · OPS-ALPHA" })
+    .click();
+
+  await expect(page).toHaveURL(/\/tasks\/.+/);
+  await expect(
+    page.getByRole("heading", { name: "Close scanner parity gap for west dock" })
+  ).toBeVisible();
+});
+
+test("manager can acknowledge, assign, snooze, and track derived email on an exception", async ({
+  page
+}) => {
+  test.setTimeout(120000);
+
+  reseedDatabase();
+
+  await signIn(page, managerEmail);
+  await page.goto("/exceptions");
+
+  const blockedExceptionCard = page
+    .getByRole("heading", {
+      name: "Blocked stale: Resolve carrier API dependency"
+    })
+    .locator("xpath=ancestor::div[contains(@class,'rounded-4xl')][1]");
+
+  await expect(blockedExceptionCard).toContainText(
+    "[Ops Tracker] Critical exception opened · OPS-BETA"
+  );
+
+  await blockedExceptionCard.getByRole("button", { name: "Acknowledge" }).click();
+  await expect(blockedExceptionCard).toContainText("Acknowledged");
+
+  await blockedExceptionCard
+    .getByLabel("Assign or reassign owner")
+    .selectOption({
+      label: "Ken Operator · operator@ops-tracker.local · Member"
+    });
+  await blockedExceptionCard.getByRole("button", { name: "Save owner" }).click();
+  await expect(blockedExceptionCard).toContainText("Owner: Ken Operator");
+  await expect(blockedExceptionCard).toContainText(
+    "[Ops Tracker] Exception assigned · OPS-BETA"
+  );
+
+  await blockedExceptionCard.getByLabel("Snooze window").selectOption("24");
+  await blockedExceptionCard.getByRole("button", { name: "Snooze" }).click();
+
+  await expect(
+    page.getByRole("heading", {
+      name: "Parked until the next follow-up window."
+    })
+  ).toBeVisible();
+
+  const snoozedCard = page
+    .getByRole("heading", {
+      name: "Blocked stale: Resolve carrier API dependency"
+    })
+    .locator("xpath=ancestor::div[contains(@class,'rounded-4xl')][1]");
+
+  await expect(snoozedCard).toContainText("Owner: Ken Operator");
+  await expect(snoozedCard).toContainText("Snoozed until");
+});
+
 test("admin can safely delegate the manager console to a manager role", async ({
   page
 }) => {
@@ -618,7 +781,9 @@ test("admin can safely delegate the manager console to a manager role", async ({
     page.getByRole("heading", { name: "Manage the people behind the handoff." })
   ).toBeVisible();
 
-  const operatorRoleSelect = page.getByLabel("Role for Ken Operator");
+  const operatorRoleSelect = page.getByLabel(
+    "Role for Ken Operator (operator@ops-tracker.local)"
+  );
   await operatorRoleSelect.selectOption("MANAGER");
   await operatorRoleSelect
     .locator("xpath=ancestor::form[1]")

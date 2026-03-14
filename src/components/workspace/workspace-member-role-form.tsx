@@ -13,6 +13,7 @@ import { workspaceRoleOptions } from "@/lib/constants";
 type WorkspaceMemberRoleFormProps = {
   currentRole: string;
   disabled?: boolean;
+  memberEmail: string;
   membershipId: string;
   memberName: string;
 };
@@ -20,6 +21,7 @@ type WorkspaceMemberRoleFormProps = {
 export function WorkspaceMemberRoleForm({
   currentRole,
   disabled = false,
+  memberEmail,
   membershipId,
   memberName
 }: WorkspaceMemberRoleFormProps) {
@@ -43,7 +45,7 @@ export function WorkspaceMemberRoleForm({
           name="role"
           defaultValue={currentRole}
           disabled={disabled}
-          aria-label={`Role for ${memberName}`}
+          aria-label={`Role for ${memberName} (${memberEmail})`}
         >
           {workspaceRoleOptions.map((role) => (
             <option key={role.value} value={role.value}>

@@ -112,6 +112,7 @@ export default async function WorkspacePage() {
                         <WorkspaceMemberRoleForm
                           membershipId={member.id}
                           currentRole={member.role}
+                          memberEmail={member.user.email}
                           memberName={member.user.name}
                           disabled={member.userId === membership.userId}
                         />

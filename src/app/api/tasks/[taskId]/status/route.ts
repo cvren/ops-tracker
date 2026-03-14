@@ -164,7 +164,10 @@ export async function PATCH(
   });
 
   revalidatePath("/dashboard");
+  revalidatePath("/commitments");
+  revalidatePath("/exceptions");
   revalidatePath("/tasks");
+  revalidatePath("/templates");
   revalidatePath(`/tasks/${updatedTask.id}`);
   revalidatePath(`/projects/${updatedTask.projectId}`);
   revalidatePath("/inbox");

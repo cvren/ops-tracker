@@ -2,108 +2,121 @@
 
 ## Release baseline
 
-- Current shipped release remains `v0.3.0`
-- Current branch head is the `ops-tracker v0.4.0 Phase 4 — Release Closeout` release-ready candidate
-- `package.json` is prepared at `0.4.0` on the release-ready branch head while the shipped release marker remains `v0.3.0` until PR / merge / tag / GitHub Release
-- The current repo has now implemented `ops-tracker v0.4.0 Phase 0–4` locally while keeping shipped `v0.3.0` history intact
+- Current shipped release remains `v0.4.0`
+- Current branch-head `package.json` version remains `0.4.0`
+- The current repo runtime remains the shipped `v0.4.0` baseline
+- `v0.5.0` started docs-first; `Phase 0` fixed contract boundaries before runtime work began
 
-## v0.4.0 phase order
+## v0.5.0 phase order
 
-1. `ops-tracker v0.4.0 Phase 0 — Operating Contract`
+1. `ops-tracker v0.5.0 Phase 0 — Commitment Contract`
    - Status: completed
-   - Depends on: current repo audit of shipped `v0.3.0` behavior and docs
+   - Depends on: current repo audit of shipped `v0.4.0` runtime and docs
    - Acceptance criteria:
-     - `docs/contracts/v0.4.0-operating-contract.md` exists
-     - role model, ledger contract, scheduler entrypoint, milestone order, and non-goals are fixed in repo docs
-     - current shipped `v0.3.0` truth is kept separate from future `v0.4.0` implementation
-2. `ops-tracker v0.4.0 Phase 1 — Safe Delegation`
+     - `docs/contracts/v0.5.0-commitment-contract.md` exists
+     - `CommitmentPolicy` and `ExceptionCase` shapes are fixed in repo docs
+     - exception kinds, statuses, invariants, dedupe rule, phase order, and non-goals are fixed
+     - shipped `v0.4.0` truth and future `v0.5.0` scope remain clearly separated
+2. `ops-tracker v0.5.0 Phase 1 — Commitment Policies`
    - Status: completed
    - Depends on: `Phase 0`
    - Acceptance criteria:
-     - `manager` exists in schema, runtime, permission helpers, and seed data
-     - admins can grant and revoke manager access inside a workspace
-     - managers can use dashboard, manager queues, bulk actions, templates, recurring schedules, and manual `Generate now`
-     - managers remain blocked from workspace root settings, membership-wide management, manager re-delegation, and scheduler configuration
-     - role changes emit inspectable activity trace for manager grant and revoke
-     - `member` collaboration flow and `viewer` read-only behavior remain intact
-3. `ops-tracker v0.4.0 Phase 2 — Execution Ledger`
+     - `CommitmentPolicy` becomes a persisted runtime model with the fixed fields `id`, `workspaceId`, `name`, `scopeType`, `scopeId`, `kind`, threshold, `severity`, `isActive`, and timestamps
+     - supported scope types remain exactly `WORKSPACE`, `PROJECT`, and `TEMPLATE`
+     - supported kinds remain exactly `OVERDUE`, `REVIEW_STALE`, `BLOCKED_STALE`, `UNASSIGNED_STALE`, and `RECURRING_FAILED`
+     - thresholds remain bounded to `thresholdMinutes` or `thresholdHours`
+     - policy activation and editing stay inside the fixed contract without becoming a generic builder
+     - manager-console UI supports bounded policy create and edit for admins and managers with loading, empty, error, and success states
+     - task, dashboard, and recurring surfaces can read policy-derived risk metadata before `ExceptionCase` exists
+     - seed, unit tests, and e2e cover a five-minute Phase 1 demo path
+3. `ops-tracker v0.5.0 Phase 2 — Exception Ledger`
    - Status: completed
    - Depends on: `Phase 0`, `Phase 1`
    - Acceptance criteria:
-     - `RecurringExecution` matches the contract shape and becomes the source-of-truth ledger
-     - execution statuses include `RUNNING`, `SUCCESS`, `FAILED`, and `SKIPPED`
-     - manual executions are ledgered with trigger provenance
-     - execution history reads from the ledger, not from inferred task side effects
-     - generated tasks can be traced back to the execution that created them
-     - failure detail is visible to managers
-     - rerun creates a fresh execution record through the same manual pipeline
-4. `ops-tracker v0.4.0 Phase 3 — Controlled Scheduled Execution`
+     - `ExceptionCase` becomes a persisted source-of-truth ledger with the fixed contract shape
+     - opening logic covers the five fixed exception kinds
+     - dedupe converges same source, same kind, and same policy into one open case
+     - cleared conditions auto-resolve existing cases where possible
+     - manager-console queue exposes open exception work objects with source drill-through
+     - dashboard, task queues, and recurring templates read open exception-ledger truth
+     - seed, unit tests, and e2e cover a five-minute Phase 2 demo path
+     - downstream delivery reads from the exception ledger instead of inventing a parallel truth
+4. `ops-tracker v0.5.0 Phase 3 — Response & Escalation`
    - Status: completed
    - Depends on: `Phase 0`, `Phase 1`, `Phase 2`
    - Acceptance criteria:
-     - `corepack pnpm recurring:tick` exists as the official scheduled entrypoint
-     - scheduled and manual recurring execution use the same core pipeline
-     - active due schedules are selected with `nextRunAt <= now`
-     - `SYSTEM` executions are recorded in the `RecurringExecution` ledger
-     - duplicate-safe execution is enforced
-     - failed executions are inspectable and rerunnable
-     - skip support remains optional
-5. `ops-tracker v0.4.0 Phase 4 — Release Closeout`
+     - managers can acknowledge, snooze, assign, and manually resolve cases
+     - case status stays bounded to `OPEN`, `ACKNOWLEDGED`, `SNOOZED`, and `RESOLVED`
+     - `ownerId`, `acknowledgedAt`, `snoozedUntil`, `resolvedAt`, and `resolutionKind` are updated through bounded response actions
+     - actionable and snoozed exception work stay readable on `/exceptions`
+     - one outbound channel exists as a derived email projection from `ExceptionCase`
+     - no full incident platform or full multi-channel delivery matrix is introduced
+5. `ops-tracker v0.5.0 Phase 4 — Release Closeout`
    - Status: completed
    - Depends on: `Phase 1`, `Phase 2`, `Phase 3`
    - Acceptance criteria:
-     - docs, tests, and release notes describe the same `v0.4.0` boundary
-     - validation results are recorded for the implemented runtime
-     - current branch head hosted `ci` result is observed or blocked explicitly
-     - shipped `v0.3.0` history and release-ready `v0.4.0` scope are clearly separated
-     - `docs/handoffs/v0.4.0-to-v0.5.0.md` exists
+     - docs, tests, validation notes, and release notes describe the same delivered `v0.5.0` boundary
+     - shipped `v0.4.0` history and delivered `v0.5.0` scope remain clearly separated
+     - validation results are recorded for the delivered runtime
+     - current branch-head hosted `ci` result is observed or blocked explicitly
      - remaining blockers are explicit
 
 ## Current cycle
 
-- Scope: `ops-tracker v0.4.0 Phase 4 — Release Closeout`
+- Scope: `ops-tracker v0.5.0 Phase 4 — Release Closeout`
 - Status: completed
 - Checklist:
-  - `[done]` audited current branch-head runtime, schema, seed, recurring pipeline, tests, and workflows against the Phase 0 contract and Phase 1–3 delivery boundary
-  - `[done]` promoted the current branch-head package version to `0.4.0` while keeping shipped `v0.3.0` history explicit in docs and release notes
-  - `[done]` reconciled README, SPEC, PLAN, STATUS, release notes, contract docs, and the `v0.3.0 -> v0.4.0` handoff to the same release-ready truth
-  - `[done]` created the forward handoff at `docs/handoffs/v0.4.0-to-v0.5.0.md`
-  - `[done]` reran the Phase 4 validation command set on the release-ready head
-  - `[done]` observed GitHub-hosted `ci` on the pushed release-ready branch head with both `validate` and `e2e` succeeding
-  - `[warning]` sandbox/tooling noise such as the local Playwright `NO_COLOR` warning is treated as an environment artifact, not a repo defect, and stays out of README instructions
-  - `[partial]` `SKIPPED` remains contract-valid and UI-visible, but manager skip action and fresh ledger rows for tick-suppression skips remain intentionally out of `v0.4.0`
+  - `[done]` observed the latest hosted GitHub Actions run on `origin/main` and recorded the exact blocker for the unpushed local `v0.5.0` tree
+  - `[done]` reconciled `README.md`, `SPEC.md`, `PLAN.md`, `STATUS.md`, `RELEASE_NOTES_v0.5.0.md`, and `docs/handoffs/v0.4.0-to-v0.5.0.md` to one release-ready `v0.5.0` boundary
+  - `[done]` created `docs/handoffs/v0.5.0-to-v0.6.0.md` to carry forward limits and the next-line start point
+  - `[done]` fixed the exact local validation target and the exact human PR, merge, tag, and GitHub Release steps
 
 ## Architecture decisions
 
-- Keep the `v0.4.0` operating role model fixed to `admin`, `manager`, `member`, and `viewer`
-- Keep `Membership.role` as the workspace-scoped role source of truth
-- Do not introduce a capability matrix, custom role builder, or advanced capability editor in `v0.4.0`
-- Keep workspace membership management admin-only even after manager-console delegation
-- Keep manager-console routes and mutations on the same central permission helper boundary
-- Record manager grant and revoke operations through the existing `ActivityEvent` model instead of a separate audit system
-- Treat `RecurringExecution` as the authoritative execution ledger for manual recurring attempts and reruns
-- Link generated recurring tasks directly to their source execution through `Task.recurringExecutionId`
-- Use `recurringScheduleId + scheduledFor` as the slot boundary for recurring execution claims
-- Keep manual `Generate now`, scheduled tick, and failed-slot rerun on the same core execution pipeline
-- Enforce duplicate-safe slot claims through a partial unique index that allows only one `RUNNING`, `SUCCESS`, or `SKIPPED` answer per slot while still allowing failed-slot reruns
-- Keep scheduled automation as a single CLI tick entrypoint instead of introducing queue or worker infrastructure
-- Treat `docs/contracts/v0.4.0-operating-contract.md` and `docs/handoffs/v0.3.0-to-v0.4.0.md` as the only canonical Phase 0–3 docs; old `M4` paths remain alias stubs only
-- Treat `SKIPPED` as contract-valid and UI-visible, but keep current scheduled skip suppression explicit as summary-only unless a real `RecurringExecution` row already exists
-- Keep shipped-release messaging pinned to `v0.3.0` until the human merge / tag / GitHub Release steps complete, even though the release-ready branch head now carries `package.json` version `0.4.0`
-- Keep sandbox-specific warnings in `STATUS.md`, not in README or the contract docs, unless they affect normal developer workflow
+- `CommitmentPolicy` is the official `v0.5.0` commitment model
+- `CommitmentPolicy.scopeType` is fixed to `WORKSPACE`, `PROJECT`, and `TEMPLATE`
+- `CommitmentPolicy.kind` is fixed to `OVERDUE`, `REVIEW_STALE`, `BLOCKED_STALE`, `UNASSIGNED_STALE`, and `RECURRING_FAILED`
+- `CommitmentPolicy` thresholds are bounded to `thresholdMinutes` or `thresholdHours` instead of a generic expression system
+- `CommitmentPolicy` severity is fixed to `LOW`, `MEDIUM`, `HIGH`, and `CRITICAL`
+- Phase 1 risk metadata was derived directly from active `CommitmentPolicy` evaluation before `ExceptionCase` existed
+- `WORKSPACE` scope binds to the current workspace id; `PROJECT` and `TEMPLATE` scope bind to ids inside the same workspace
+- `ExceptionCase` is the `v0.5.0` source-of-truth exception ledger and work object
+- `ExceptionCase.status` is fixed to `OPEN`, `ACKNOWLEDGED`, `SNOOZED`, and `RESOLVED`
+- `ExceptionCase.resolutionKind` is fixed to `AUTO` and `MANUAL`
+- `fingerprint` is the stable dedupe key for same-source, same-kind, same-policy convergence
+- active manager surfaces now rebuild risk metadata from open `ExceptionCase` rows instead of direct policy hits
+- `/exceptions` is the bounded manager response queue for actionable and snoozed case work
+- `ACKNOWLEDGED`, `SNOOZED`, `RESOLVED`, `ownerId`, `acknowledgedAt`, `snoozedUntil`, and `resolvedAt` are written on `ExceptionCase` rather than a parallel response model
+- expired snoozes reopen into `ACKNOWLEDGED` when the case had already been seen, otherwise into `OPEN`
+- outbound delivery currently stays bounded to one derived email channel through `ExceptionEmailDelivery`
+- auto-resolve is preferred when the underlying condition clears; manual resolve remains supportive
+- workspace membership role controls use `name + email` accessibility labels so duplicate display names remain uniquely targetable
+- the Playwright app spec reseeds the canonical demo baseline before each test so historical compatibility flows stay isolated
+- hosted GitHub Actions observation for `v0.5.0` can only apply to a pushed ref; the current local working tree remains blocked from hosted observation until commit and push
+- `v0.5.0` does not widen into a generic policy builder, custom rule engine, or full incident platform
+- `UNASSIGNED_STALE` currently anchors on task `createdAt` until a dedicated unassigned-since field exists in a later phase
+- `Phase 3` keeps `ExceptionCase` as the active branch-head truth for open exceptions while adding bounded response controls and one derived email channel
 
 ## Validation strategy
 
 ```bash
-corepack pnpm install
-docker compose up -d
 corepack pnpm exec prisma generate
-corepack pnpm exec prisma migrate deploy || corepack pnpm exec prisma migrate dev
-corepack pnpm db:seed
+docker compose up -d
+docker compose exec -T postgres psql -v ON_ERROR_STOP=1 -U ops_tracker -d ops_tracker < prisma/migrations/20260314223000_v0_5_0_phase_3_response_and_escalation/migration.sql
+node --env-file=.env.example --import tsx prisma/seed.ts
 corepack pnpm lint
 corepack pnpm typecheck
 corepack pnpm test
 corepack pnpm test:e2e
 corepack pnpm build
-corepack pnpm recurring:tick
+cp .env.example .env && corepack pnpm recurring:tick
+git diff --check
 ```
+
+Hosted GitHub Actions observation:
+
+- `origin/main` commit `2afe999a47fa29133897d736240922a144e66f3d`
+- run `#25` on March 12, 2026: `https://github.com/cvren/ops-tracker/actions/runs/22985172776`
+- `validate`: `success`
+- `e2e`: `success`
+- blocker: the local `v0.5.0` release-ready tree is not yet committed and pushed, so no hosted run exists for the exact current repo truth

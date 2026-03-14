@@ -17,6 +17,8 @@ export function revalidateTaskSurfaces(input: {
   projectIds?: string[];
 }) {
   revalidatePath("/dashboard");
+  revalidatePath("/commitments");
+  revalidatePath("/exceptions");
   revalidatePath("/tasks");
   revalidatePath("/inbox");
   revalidatePath("/workspace");
