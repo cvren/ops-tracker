@@ -1,5 +1,8 @@
 import {
   BlockedCategory,
+  CommitmentPolicyKind,
+  CommitmentScopeType,
+  CommitmentSeverity,
   ProjectStatus,
   RecurringCadence,
   TaskPriority,
@@ -42,6 +45,26 @@ const bulkBlockedStateSchema = z.union([
 const templateStatusSchema = z.union([
   z.literal(TaskStatus.BACKLOG),
   z.literal(TaskStatus.IN_PROGRESS)
+]);
+
+const commitmentThresholdUnitSchema = z.union([
+  z.literal("minutes"),
+  z.literal("hours")
+]);
+
+const exceptionResponseIntentSchema = z.union([
+  z.literal("acknowledge"),
+  z.literal("assign-owner"),
+  z.literal("resolve"),
+  z.literal("snooze")
+]);
+
+const exceptionSnoozeHoursSchema = z.union([
+  z.literal(""),
+  z.literal("1"),
+  z.literal("4"),
+  z.literal("24"),
+  z.literal("72")
 ]);
 
 export const loginSchema = z.object({
@@ -241,10 +264,76 @@ export const recurringScheduleSchema = z.object({
   isActive: z.boolean()
 });
 
+export const commitmentPolicySchema = z
+  .object({
+    name: z
+      .string()
+      .trim()
+      .min(3, "Policy name must be at least 3 characters.")
+      .max(80, "Policy name must be 80 characters or fewer."),
+    scopeType: z.nativeEnum(CommitmentScopeType),
+    projectScopeId: optionalIdSchema,
+    templateScopeId: optionalIdSchema,
+    kind: z.nativeEnum(CommitmentPolicyKind),
+    thresholdUnit: commitmentThresholdUnitSchema,
+    thresholdValue: integerInputSchema.refine(
+      (value) =>
+        value !== "" && Number(value) >= 1 && Number(value) <= 10_080,
+      "Threshold must be between 1 and 10080."
+    ),
+    severity: z.nativeEnum(CommitmentSeverity),
+    isActive: z.boolean()
+  })
+  .superRefine((data, context) => {
+    if (data.scopeType === CommitmentScopeType.PROJECT && !data.projectScopeId) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["projectScopeId"],
+        message: "Choose a project scope."
+      });
+    }
+
+    if (
+      data.scopeType === CommitmentScopeType.TEMPLATE &&
+      !data.templateScopeId
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["templateScopeId"],
+        message: "Choose a template scope."
+      });
+    }
+  });
+
 export const createMembershipSchema = z.object({
   userId: z.string().cuid("Choose a valid user."),
   role: z.nativeEnum(WorkspaceRole)
 });
+
+export const exceptionResponseSchema = z
+  .object({
+    caseId: z.string().cuid("Choose a valid exception case."),
+    intent: exceptionResponseIntentSchema,
+    ownerId: optionalIdSchema,
+    snoozeHours: exceptionSnoozeHoursSchema
+  })
+  .superRefine((data, context) => {
+    if (data.intent === "assign-owner" && !data.ownerId) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["ownerId"],
+        message: "Choose an owner for the exception."
+      });
+    }
+
+    if (data.intent === "snooze" && data.snoozeHours === "") {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["snoozeHours"],
+        message: "Choose how long to snooze the exception."
+      });
+    }
+  });
 
 export const updateMembershipRoleSchema = z.object({
   membershipId: z.string().cuid("Choose a valid member."),
@@ -272,6 +361,13 @@ export function getStringArrayValues(
     .filter((value): value is string => typeof value === "string")
     .map((value) => value.trim())
     .filter(Boolean);
+}
+
+export function getBooleanValue(formData: FormData, key: string) {
+  return (
+    getStringValue(formData, key) === "on" ||
+    getStringValue(formData, key) === "true"
+  );
 }
 
 export function parseProjectFormData(formData: FormData) {
@@ -347,9 +443,30 @@ export function parseRecurringScheduleFormData(formData: FormData) {
     cadence: getStringValue(formData, "cadence"),
     interval: getStringValue(formData, "interval"),
     nextRunAt: getStringValue(formData, "nextRunAt"),
-    isActive:
-      getStringValue(formData, "isActive") === "on" ||
-      getStringValue(formData, "isActive") === "true"
+    isActive: getBooleanValue(formData, "isActive")
+  });
+}
+
+export function parseCommitmentPolicyFormData(formData: FormData) {
+  return commitmentPolicySchema.safeParse({
+    name: getStringValue(formData, "name"),
+    scopeType: getStringValue(formData, "scopeType"),
+    projectScopeId: getStringValue(formData, "projectScopeId"),
+    templateScopeId: getStringValue(formData, "templateScopeId"),
+    kind: getStringValue(formData, "kind"),
+    thresholdUnit: getStringValue(formData, "thresholdUnit"),
+    thresholdValue: getStringValue(formData, "thresholdValue"),
+    severity: getStringValue(formData, "severity"),
+    isActive: getBooleanValue(formData, "isActive")
+  });
+}
+
+export function parseExceptionResponseFormData(formData: FormData) {
+  return exceptionResponseSchema.safeParse({
+    caseId: getStringValue(formData, "caseId"),
+    intent: getStringValue(formData, "intent"),
+    ownerId: getStringValue(formData, "ownerId"),
+    snoozeHours: getStringValue(formData, "snoozeHours")
   });
 }
 

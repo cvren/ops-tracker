@@ -5,6 +5,7 @@ import {
   parseBulkTaskUpdateFormData,
   parseCommentFormData,
   parseCreateTaskFromTemplateFormData,
+  parseExceptionResponseFormData,
   parseProjectFormData,
   parseRecurringScheduleFormData,
   parseTaskFormData,
@@ -145,6 +146,34 @@ describe("comment validation", () => {
           "cm8opsdemo0000000000000001",
           "cm8opsdemo0000000000000002"
         ]
+      })
+    );
+
+    expect(parsed.success).toBe(true);
+  });
+});
+
+describe("exception response validation", () => {
+  it("requires an owner when reassigning an exception", () => {
+    const parsed = parseExceptionResponseFormData(
+      createFormData({
+        caseId: "cm8opsdemo0000000000000901",
+        intent: "assign-owner",
+        ownerId: "",
+        snoozeHours: ""
+      })
+    );
+
+    expect(parsed.success).toBe(false);
+  });
+
+  it("accepts a bounded snooze request", () => {
+    const parsed = parseExceptionResponseFormData(
+      createFormData({
+        caseId: "cm8opsdemo0000000000000901",
+        intent: "snooze",
+        ownerId: "",
+        snoozeHours: "24"
       })
     );
 

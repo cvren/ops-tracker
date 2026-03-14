@@ -1,4 +1,7 @@
+import type { ReactNode } from "react";
 import {
+  type CommitmentSeverity,
+  type ExceptionStatus,
   type RecurringExecutionStatus,
   type ProjectStatus,
   type TaskPriority,
@@ -8,6 +11,10 @@ import {
 
 import { Badge } from "@/components/ui/badge";
 import {
+  commitmentSeverityClasses,
+  commitmentSeverityLabels,
+  exceptionStatusClasses,
+  exceptionStatusLabels,
   projectStatusClasses,
   projectStatusLabels,
   recurringExecutionStatusClasses,
@@ -56,6 +63,28 @@ export function WorkspaceRoleBadge({ role }: { role: WorkspaceRole }) {
   return (
     <Badge className={workspaceRoleClasses[role]}>
       {workspaceRoleLabels[role]}
+    </Badge>
+  );
+}
+
+export function CommitmentSeverityBadge({
+  severity,
+  children
+}: {
+  severity: CommitmentSeverity;
+  children?: ReactNode;
+}) {
+  return (
+    <Badge className={commitmentSeverityClasses[severity]}>
+      {children ?? commitmentSeverityLabels[severity]}
+    </Badge>
+  );
+}
+
+export function ExceptionStatusBadge({ status }: { status: ExceptionStatus }) {
+  return (
+    <Badge className={exceptionStatusClasses[status]}>
+      {exceptionStatusLabels[status]}
     </Badge>
   );
 }

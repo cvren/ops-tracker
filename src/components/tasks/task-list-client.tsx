@@ -13,6 +13,7 @@ import {
   TaskPriorityBadge,
   TaskStatusBadge
 } from "@/components/status-badges";
+import { CommitmentRiskSummary } from "@/components/commitments/commitment-risk-summary";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Panel } from "@/components/ui/panel";
@@ -22,6 +23,7 @@ import {
   blockedCategoryOptions,
   taskPriorityOptions
 } from "@/lib/constants";
+import type { CommitmentRiskMetadata } from "@/lib/commitment-policies";
 import { INITIAL_ACTION_STATE } from "@/lib/forms";
 import { getDueDateBoundary } from "@/lib/task-views";
 import { formatDate, formatDateTime } from "@/lib/utils";
@@ -52,6 +54,7 @@ type TaskListClientProps = {
       id: string;
       name: string;
     } | null;
+    risk: CommitmentRiskMetadata;
   }>;
   users: Array<{
     id: string;
@@ -335,6 +338,7 @@ export function TaskListClient({
                       </span>
                     ) : null}
                   </div>
+                  <CommitmentRiskSummary risk={task.risk} />
                   <div>
                     <Link
                       href={`/tasks/${task.id}` as Route}

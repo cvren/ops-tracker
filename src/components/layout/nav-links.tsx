@@ -11,21 +11,23 @@ import { cn } from "@/lib/utils";
 function getLinks(role: WorkspaceRole) {
   if (canManageManagerConsole(role)) {
     return [
-      { href: "/dashboard", label: "Dashboard" },
-      { href: "/projects", label: "Projects" },
-      { href: "/tasks", label: "Tasks" },
-      { href: "/templates", label: "Templates" },
-      { href: "/inbox", label: "Inbox" },
-      { href: "/workspace", label: "Workspace" }
+      { href: "/dashboard" as Route, label: "Dashboard" },
+      { href: "/projects" as Route, label: "Projects" },
+      { href: "/tasks" as Route, label: "Tasks" },
+      { href: "/templates" as Route, label: "Templates" },
+      { href: "/commitments" as Route, label: "Commitments" },
+      { href: "/exceptions" as Route, label: "Exceptions" },
+      { href: "/inbox" as Route, label: "Inbox" },
+      { href: "/workspace" as Route, label: "Workspace" }
     ] satisfies ReadonlyArray<{ href: Route; label: string }>;
   }
 
   return [
-    { href: "/dashboard", label: "Dashboard" },
-    { href: "/projects", label: "Projects" },
-    { href: "/tasks", label: "Tasks" },
-    { href: "/inbox", label: "Inbox" },
-    { href: "/workspace", label: "Workspace" }
+    { href: "/dashboard" as Route, label: "Dashboard" },
+    { href: "/projects" as Route, label: "Projects" },
+    { href: "/tasks" as Route, label: "Tasks" },
+    { href: "/inbox" as Route, label: "Inbox" },
+    { href: "/workspace" as Route, label: "Workspace" }
   ] satisfies ReadonlyArray<{ href: Route; label: string }>;
 }
 

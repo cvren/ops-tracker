@@ -1,4 +1,8 @@
 import {
+  CommitmentPolicyKind,
+  CommitmentScopeType,
+  CommitmentSeverity,
+  ExceptionStatus,
   BlockedCategory,
   ProjectStatus,
   RecurringCadence,
@@ -80,6 +84,72 @@ export const workspaceRoleLabels = Object.fromEntries(
   workspaceRoleOptions.map((option) => [option.value, option.label])
 ) as Record<WorkspaceRole, string>;
 
+export const commitmentScopeTypeOptions = [
+  { value: CommitmentScopeType.WORKSPACE, label: "Workspace" },
+  { value: CommitmentScopeType.PROJECT, label: "Project" },
+  { value: CommitmentScopeType.TEMPLATE, label: "Template" }
+] as const;
+
+export const commitmentScopeTypeLabels = Object.fromEntries(
+  commitmentScopeTypeOptions.map((option) => [option.value, option.label])
+) as Record<CommitmentScopeType, string>;
+
+export const commitmentPolicyKindOptions = [
+  {
+    value: CommitmentPolicyKind.OVERDUE,
+    label: "Overdue",
+    description: "Open work that has remained past due for the policy threshold."
+  },
+  {
+    value: CommitmentPolicyKind.REVIEW_STALE,
+    label: "Review stale",
+    description:
+      "Tasks waiting on review longer than the policy threshold."
+  },
+  {
+    value: CommitmentPolicyKind.BLOCKED_STALE,
+    label: "Blocked stale",
+    description: "Blocked work that has sat past the policy threshold."
+  },
+  {
+    value: CommitmentPolicyKind.UNASSIGNED_STALE,
+    label: "Unassigned stale",
+    description: "Open work without an owner past the policy threshold."
+  },
+  {
+    value: CommitmentPolicyKind.RECURRING_FAILED,
+    label: "Recurring failed",
+    description:
+      "Recurring schedules whose latest failed execution remains unrecovered past the threshold."
+  }
+] as const;
+
+export const commitmentPolicyKindLabels = Object.fromEntries(
+  commitmentPolicyKindOptions.map((option) => [option.value, option.label])
+) as Record<CommitmentPolicyKind, string>;
+
+export const commitmentSeverityOptions = [
+  { value: CommitmentSeverity.LOW, label: "Low" },
+  { value: CommitmentSeverity.MEDIUM, label: "Medium" },
+  { value: CommitmentSeverity.HIGH, label: "High" },
+  { value: CommitmentSeverity.CRITICAL, label: "Critical" }
+] as const;
+
+export const commitmentSeverityLabels = Object.fromEntries(
+  commitmentSeverityOptions.map((option) => [option.value, option.label])
+) as Record<CommitmentSeverity, string>;
+
+export const exceptionStatusOptions = [
+  { value: ExceptionStatus.OPEN, label: "Open" },
+  { value: ExceptionStatus.ACKNOWLEDGED, label: "Acknowledged" },
+  { value: ExceptionStatus.SNOOZED, label: "Snoozed" },
+  { value: ExceptionStatus.RESOLVED, label: "Resolved" }
+] as const;
+
+export const exceptionStatusLabels = Object.fromEntries(
+  exceptionStatusOptions.map((option) => [option.value, option.label])
+) as Record<ExceptionStatus, string>;
+
 export const blockedCategoryOptions = [
   { value: BlockedCategory.DEPENDENCY, label: "Dependency" },
   { value: BlockedCategory.EXTERNAL, label: "External" },
@@ -134,7 +204,8 @@ export const managerTaskViewOptions = [
   {
     value: "high-risk",
     label: "High-Risk Queue",
-    description: "Overdue, blocked, stale review, or unassigned risk."
+    description:
+      "Tasks currently breaching one or more active commitment policies."
   },
   {
     value: "workload",
@@ -176,11 +247,25 @@ export const taskPriorityClasses: Record<TaskPriority, string> = {
   HIGH: "bg-rose-100 text-rose-900"
 };
 
+export const exceptionStatusClasses: Record<ExceptionStatus, string> = {
+  OPEN: "bg-rose-100 text-rose-900",
+  ACKNOWLEDGED: "bg-sky-100 text-sky-900",
+  SNOOZED: "bg-amber-100 text-amber-900",
+  RESOLVED: "bg-emerald-100 text-emerald-900"
+};
+
 export const workspaceRoleClasses: Record<WorkspaceRole, string> = {
   ADMIN: "bg-sky-100 text-sky-900",
   MANAGER: "bg-amber-100 text-amber-900",
   MEMBER: "bg-emerald-100 text-emerald-900",
   VIEWER: "bg-stone-200 text-stone-800"
+};
+
+export const commitmentSeverityClasses: Record<CommitmentSeverity, string> = {
+  LOW: "bg-emerald-100 text-emerald-900",
+  MEDIUM: "bg-amber-100 text-amber-900",
+  HIGH: "bg-rose-100 text-rose-900",
+  CRITICAL: "bg-rose-200 text-rose-950"
 };
 
 export const recurringExecutionStatusClasses: Record<
@@ -225,5 +310,10 @@ export const activityEventLabels: Record<ActivityEventType, string> = {
   MEMBERSHIP_ROLE_CHANGED: "Role changed",
   MANAGER_ROLE_GRANTED: "Manager access granted",
   MANAGER_ROLE_REVOKED: "Manager access revoked",
-  MEMBERSHIP_REMOVED: "Member removed"
+  MEMBERSHIP_REMOVED: "Member removed",
+  EXCEPTION_CASE_OPENED: "Exception opened",
+  EXCEPTION_CASE_ACKNOWLEDGED: "Exception acknowledged",
+  EXCEPTION_CASE_SNOOZED: "Exception snoozed",
+  EXCEPTION_CASE_ASSIGNED: "Exception assigned",
+  EXCEPTION_CASE_RESOLVED: "Exception resolved"
 };

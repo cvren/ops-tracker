@@ -115,11 +115,14 @@ export default async function TasksPage({ searchParams }: TasksPageProps) {
     view && view in taskViewLabels
       ? taskViewLabels[view]
       : "Work the queue with ownership and review context.";
-  const headerDescription = bulkEnabled
-    ? "Select the risky tasks on this queue and clear them in one pass without opening each detail page."
-    : canAccessManagerConsole
-      ? "Filter the shared task list by queue, owner, reviewer, due date, and project so the next risky pocket of work is obvious."
-      : "Filter the shared task list by saved view, reviewer, owner, deadline, and project so handoffs do not drift into Slack or memory.";
+  const headerDescription =
+    view === "high-risk"
+      ? "This queue now reads exception-ledger risk metadata, so the cards here reflect active work objects opened from commitment breaches instead of a hard-coded heuristic."
+      : bulkEnabled
+        ? "Select the risky tasks on this queue and clear them in one pass without opening each detail page."
+        : canAccessManagerConsole
+          ? "Filter the shared task list by queue, owner, reviewer, due date, and project so the next risky pocket of work is obvious."
+          : "Filter the shared task list by saved view, reviewer, owner, deadline, and project so handoffs do not drift into Slack or memory.";
 
   return (
     <div className="space-y-8">

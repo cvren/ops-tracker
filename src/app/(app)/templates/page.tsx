@@ -3,6 +3,7 @@ import type { Route } from "next";
 
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
+import { CommitmentRiskSummary } from "@/components/commitments/commitment-risk-summary";
 import { RecurringExecutionHistory } from "@/components/templates/recurring-execution-history";
 import { ExecuteRecurringButton } from "@/components/templates/execute-recurring-button";
 import { RecurringScheduleForm } from "@/components/templates/recurring-schedule-form";
@@ -104,10 +105,22 @@ export default async function TemplatesPage() {
               Back to dashboard
             </Link>
             <Link
-              href="/tasks?view=due-this-week"
+              href={"/exceptions" as Route}
               className="inline-flex min-h-11 items-center justify-center rounded-full bg-ink px-5 py-2 text-sm font-semibold text-canvas transition hover:-translate-y-0.5"
             >
+              Open exceptions
+            </Link>
+            <Link
+              href="/tasks?view=due-this-week"
+              className="inline-flex min-h-11 items-center justify-center rounded-full bg-accent px-5 py-2 text-sm font-semibold text-canvas transition hover:-translate-y-0.5"
+            >
               Open due-this-week queue
+            </Link>
+            <Link
+              href="/commitments"
+              className="inline-flex min-h-11 items-center justify-center rounded-full bg-white/80 px-5 py-2 text-sm font-semibold text-ink ring-1 ring-black/10 transition hover:bg-white"
+            >
+              Open commitments
             </Link>
           </div>
         }
@@ -283,6 +296,7 @@ export default async function TemplatesPage() {
                       <p>{schedule.isActive ? "Active" : "Inactive"}</p>
                     </div>
                   </div>
+                  <CommitmentRiskSummary risk={schedule.risk} />
                   <div className="grid gap-6 xl:grid-cols-[0.72fr_1.28fr]">
                     <Panel className="space-y-4 bg-canvas/75">
                       <div className="space-y-2">

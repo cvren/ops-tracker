@@ -3,6 +3,7 @@ import type { Route } from "next";
 
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
+import { CommitmentRiskSummary } from "@/components/commitments/commitment-risk-summary";
 import {
   ProjectStatusBadge,
   TaskPriorityBadge,
@@ -151,12 +152,18 @@ export default async function DashboardPage() {
         <PageHeader
           eyebrow="Manager Console"
           title="Spot the risk, then clear it before the morning slips."
-          description="Scan overdue, blocked, stale review, due-soon, and workload skew from one place. Every card drills into the next queue a manager should inspect."
+          description="Scan overdue, blocked, stale review, due-soon, workload skew, and the live exception ledger from one place. Every card drills into the next queue a manager should inspect."
           action={
             <div className="flex flex-wrap gap-3">
               <Link
-                href="/tasks?view=high-risk"
+                href={"/exceptions" as Route}
                 className="inline-flex min-h-11 items-center justify-center rounded-full bg-ink px-5 py-2 text-sm font-semibold text-canvas transition hover:-translate-y-0.5"
+              >
+                Open exceptions
+              </Link>
+              <Link
+                href="/tasks?view=high-risk"
+                className="inline-flex min-h-11 items-center justify-center rounded-full bg-accent px-5 py-2 text-sm font-semibold text-canvas transition hover:-translate-y-0.5"
               >
                 Open high-risk queue
               </Link>
@@ -165,6 +172,12 @@ export default async function DashboardPage() {
                 className="inline-flex min-h-11 items-center justify-center rounded-full bg-accent px-5 py-2 text-sm font-semibold text-canvas transition hover:-translate-y-0.5"
               >
                 Open templates
+              </Link>
+              <Link
+                href="/commitments"
+                className="inline-flex min-h-11 items-center justify-center rounded-full bg-white/80 px-5 py-2 text-sm font-semibold text-ink ring-1 ring-black/10 transition hover:bg-white"
+              >
+                Open commitments
               </Link>
               <Link
                 href="/tasks?view=workload"
@@ -207,6 +220,65 @@ export default async function DashboardPage() {
           ))}
         </section>
 
+        <section className="space-y-4">
+          <div className="space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">
+              Exception ledger
+            </p>
+            <h2 className="text-2xl font-semibold text-ink">
+              Live work objects opened from commitment breaches
+            </h2>
+          </div>
+          <div className="grid gap-4 md:grid-cols-3">
+            <Panel className="space-y-2 bg-canvas/80">
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">
+                Active policies
+              </p>
+              <p className="text-3xl font-semibold text-ink">
+                {managerData.commitmentSummary.activePoliciesCount}
+              </p>
+              <p className="text-sm text-ink/65">
+                Fixed commitments currently evaluating this workspace.
+              </p>
+            </Panel>
+            <Panel className="space-y-2 bg-canvas/80">
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">
+                Task exceptions
+              </p>
+              <p className="text-3xl font-semibold text-ink">
+                {managerData.commitmentSummary.taskRiskCount}
+              </p>
+              <p className="text-sm text-ink/65">
+                Open task-backed exception cases still waiting on a source fix.
+              </p>
+            </Panel>
+            <Panel className="space-y-2 bg-canvas/80">
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">
+                Recurring exceptions
+              </p>
+              <p className="text-3xl font-semibold text-ink">
+                {managerData.commitmentSummary.recurringRiskCount}
+              </p>
+              <p className="text-sm text-ink/65">
+                Failed recurring executions that still remain open in the ledger.
+              </p>
+            </Panel>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+            {managerData.commitmentSummary.kindCounts.map((entry) => (
+              <Panel key={entry.kind} className="space-y-2 bg-canvas/80">
+                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">
+                  {entry.label}
+                </p>
+                <p className="text-3xl font-semibold text-ink">{entry.count}</p>
+                <p className="text-sm text-ink/65">
+                  Open ledger sources currently carrying this exception kind.
+                </p>
+              </Panel>
+            ))}
+          </div>
+        </section>
+
         <section className="grid gap-6 xl:grid-cols-2">
           {bottleneckSections.map((section) => (
             <Panel key={section.key} className="space-y-4">
@@ -246,6 +318,9 @@ export default async function DashboardPage() {
                       <p className="mt-1 text-sm text-ink/65">
                         {task.project.code} · {task.project.name}
                       </p>
+                      <div className="mt-3">
+                        <CommitmentRiskSummary risk={task.risk} />
+                      </div>
                       <p className="mt-3 text-sm text-ink/70">
                         Owner: {task.assignee?.name ?? "Unassigned"} · Reviewer:{" "}
                         {task.reviewer?.name ?? "None"} · Due:{" "}
@@ -315,14 +390,14 @@ export default async function DashboardPage() {
           <div className="space-y-6">
             <Panel className="space-y-5">
               <div className="flex items-center justify-between gap-4">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">
-                    High-risk queue
-                  </p>
-                  <h2 className="mt-2 text-2xl font-semibold text-ink">
-                    Triage the tasks most likely to slip
-                  </h2>
-                </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">
+                  High-risk queue
+                </p>
+                <h2 className="mt-2 text-2xl font-semibold text-ink">
+                  Triage tasks with open exception-backed risk
+                </h2>
+              </div>
                 <Link
                   href="/tasks?view=high-risk"
                   className="text-sm font-semibold text-accent hover:text-ink"
@@ -363,6 +438,9 @@ export default async function DashboardPage() {
                         <p className="mt-1 text-sm text-ink/65">
                           {task.project.code} · {task.project.name}
                         </p>
+                        <div className="mt-3">
+                          <CommitmentRiskSummary risk={task.risk} />
+                        </div>
                         <p className="mt-3 text-sm text-ink/70">
                           Owner: {task.assignee?.name ?? "Unassigned"} · Due:{" "}
                           {formatDate(task.dueDate)}

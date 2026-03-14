@@ -1,8 +1,8 @@
 # ops-tracker
 
-`ops-tracker` has shipped `v0.4.0`: the existing collaboration flow plus the full `v0.4.0` manager delegation and recurring execution baseline. The next development handoff starts at `docs/handoffs/v0.4.0-to-v0.5.0.md`.
+`ops-tracker` has shipped `v0.4.0`: the existing collaboration flow plus the full `v0.4.0` manager delegation and recurring execution baseline. The current local branch head now closes out `v0.5.0` through `Phase 4 — Release Closeout`, fixing the release-ready boundary in repo docs, validation notes, and handoffs while keeping the shipped release at `v0.4.0` until PR, merge, tag, and GitHub Release steps are completed.
 
-See `docs/contracts/v0.4.0-operating-contract.md` for the `v0.4.0` contract baseline, `docs/handoffs/v0.3.0-to-v0.4.0.md` for the shipped release handoff, and `docs/handoffs/v0.4.0-to-v0.5.0.md` for the next line of work.
+See `docs/contracts/v0.4.0-operating-contract.md` for the shipped `v0.4.0` contract baseline, `docs/contracts/v0.5.0-commitment-contract.md` for the locked `v0.5.0` contract, `docs/handoffs/v0.3.0-to-v0.4.0.md` for the shipped release handoff, `docs/handoffs/v0.4.0-to-v0.5.0.md` for the `v0.5.0` closeout handoff, and `docs/handoffs/v0.5.0-to-v0.6.0.md` for the next-line handoff.
 
 ## Foundation retained from v0.3.0
 
@@ -89,9 +89,62 @@ corepack pnpm build
 corepack pnpm recurring:tick
 ```
 
+## v0.5.0 release-ready baseline
+
+- Theme: `Operational commitments become actionable exceptions`
+- Subtheme: `Problems stop being alerts and start becoming work`
+- Canonical contract: `docs/contracts/v0.5.0-commitment-contract.md`
+- `Phase 1` adds the bounded `CommitmentPolicy` model, manager-console policy UI, and fixed-kind evaluation
+- `Phase 2` adds the `ExceptionCase` source-of-truth ledger, deduped open-case creation, auto-resolve, and the `/exceptions` manager queue
+- `Phase 3` adds acknowledge, snooze, assignment, manual resolve, and one derived outbound email channel without widening into a multi-channel platform
+- `Phase 4` aligns docs, validation truth, release notes, handoffs, and release-ready next steps without widening product scope
+
+## v0.5.0 Phase 1 demo flow
+
+1. Start from a fresh seed and sign in as `admin@ops-tracker.local`.
+2. Open `/commitments` and confirm the seeded policy ledger shows workspace, project, and template-scoped commitment policies.
+3. Create a new `REVIEW_STALE` policy scoped to `OPS-ALPHA · Harbor inventory rollout` with a `30 minutes` threshold.
+4. Open `/tasks?view=review-queue` and confirm `Prepare dock handoff checklist` now shows a risk card with `Source: <policy name>`.
+5. Return to `/commitments`, edit that same policy to `6 hours`, and save it.
+6. Reopen `/tasks?view=review-queue` and confirm the same risk source disappears because the task no longer breaches the edited threshold.
+
+## v0.5.0 Phase 2 demo flow
+
+1. Start from a fresh seed and sign in as `manager@ops-tracker.local`.
+2. Open `/exceptions` and confirm the queue shows open cases such as `Overdue: Close scanner parity gap for west dock`.
+3. Confirm the queue cards show severity, status, source policy, opened time, and a source link.
+4. Open `Overdue: Close scanner parity gap for west dock` and follow `Open task · OPS-ALPHA`.
+5. Confirm the task detail opens for `Close scanner parity gap for west dock`.
+6. Return to `/commitments`, create or edit a policy threshold so a currently open breach clears.
+7. Reopen `/exceptions` or the affected queue and confirm the case disappears automatically once the underlying condition no longer matches.
+
+## v0.5.0 Phase 3 demo flow
+
+1. Start from a fresh seed and sign in as `manager@ops-tracker.local`.
+2. Open `/exceptions` and find `Blocked stale: Resolve carrier API dependency`.
+3. Click `Acknowledge` and confirm the case moves into an acknowledged response state.
+4. Assign the case to `Ken Operator` and confirm the card now shows `Owner: Ken Operator`.
+5. Confirm the same card shows a derived email entry with subject `[Ops Tracker] Exception assigned · OPS-BETA`.
+6. Set the snooze window to `24 hours`, click `Snooze`, and confirm the case moves into the `Snoozed cases` section.
+7. Use `Resolve manually` on another active case if needed; if the underlying source still violates its policy, the ledger may open a fresh case on a later refresh.
+
 ## Current release state
 
 - Current shipped release: `v0.4.0`
 - Current package version: `0.4.0`
 - Published release notes: `RELEASE_NOTES_v0.4.0.md`
-- Next line of work: `docs/handoffs/v0.4.0-to-v0.5.0.md`
+- Draft release notes for the next cut: `RELEASE_NOTES_v0.5.0.md`
+- Canonical `v0.5.0` contract: `docs/contracts/v0.5.0-commitment-contract.md`
+- Current local branch-head implementation target completed: `ops-tracker v0.5.0 Phase 4 — Release Closeout`
+- Current hosted GitHub Actions observation on `origin/main` is run `#25` for commit `2afe999a47fa29133897d736240922a144e66f3d` on March 12, 2026, and it completed `success` with `validate` and `e2e`
+- Current local `v0.5.0` working tree still has no hosted CI of its own because the release-ready tree has not been committed and pushed yet
+- Next implementation target after release: `ops-tracker v0.6.0 Phase 0 — Contract`
+
+## v0.5.0 release-ready next steps
+
+1. Commit the current `v0.5.0` Phase 1 through Phase 4 tree on a pushable branch and include the release-closeout docs.
+2. Push that branch to GitHub and wait for hosted `ci` to run on the actual `v0.5.0` tree.
+3. Open a PR against `main` using `docs/handoffs/v0.4.0-to-v0.5.0.md` and `RELEASE_NOTES_v0.5.0.md` as the review and release summary.
+4. Before merge or as part of the release commit, bump `package.json` from `0.4.0` to `0.5.0` so the repo version matches the release tag.
+5. Merge the PR after hosted `validate` and `e2e` are green on the pushed `v0.5.0` tree.
+6. Tag the merge commit as `v0.5.0` and create the GitHub Release from `RELEASE_NOTES_v0.5.0.md`.

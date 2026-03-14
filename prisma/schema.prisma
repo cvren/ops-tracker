@@ -54,6 +54,39 @@ enum RecurringTriggerSource {
   USER
 }
 
+enum CommitmentScopeType {
+  WORKSPACE
+  PROJECT
+  TEMPLATE
+}
+
+enum CommitmentPolicyKind {
+  OVERDUE
+  REVIEW_STALE
+  BLOCKED_STALE
+  UNASSIGNED_STALE
+  RECURRING_FAILED
+}
+
+enum CommitmentSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum ExceptionStatus {
+  OPEN
+  ACKNOWLEDGED
+  SNOOZED
+  RESOLVED
+}
+
+enum ExceptionResolutionKind {
+  AUTO
+  MANUAL
+}
+
 enum BlockedCategory {
   DEPENDENCY
   EXTERNAL
@@ -95,6 +128,16 @@ enum ActivityEventType {
   MANAGER_ROLE_GRANTED
   MANAGER_ROLE_REVOKED
   MEMBERSHIP_REMOVED
+  EXCEPTION_CASE_OPENED
+  EXCEPTION_CASE_ACKNOWLEDGED
+  EXCEPTION_CASE_SNOOZED
+  EXCEPTION_CASE_ASSIGNED
+  EXCEPTION_CASE_RESOLVED
+}
+
+enum ExceptionEmailDeliveryEvent {
+  OPENED
+  ASSIGNED
 }
 
 model User {
@@ -127,6 +170,8 @@ model User {
   mentionedComments     CommentMention[]
   activityEvents        ActivityEvent[] @relation("ActivityActor")
   notifications         Notification[]
+  ownedExceptionCases   ExceptionCase[] @relation("ExceptionCaseOwner")
+  exceptionEmailDeliveries ExceptionEmailDelivery[] @relation("ExceptionEmailDeliveryRecipient")
 }
 
 model Session {
@@ -151,9 +196,87 @@ model Workspace {
   memberships    Membership[]
   projects       Project[]
   taskTemplates  TaskTemplate[]
+  commitmentPolicies CommitmentPolicy[]
+  exceptionCases ExceptionCase[]
+  exceptionEmailDeliveries ExceptionEmailDelivery[]
   recurringSchedules RecurringSchedule[]
   recurringExecutions RecurringExecution[]
   activityEvents ActivityEvent[]
+}
+
+model CommitmentPolicy {
+  id               String               @id @default(cuid())
+  workspaceId      String
+  name             String
+  scopeType        CommitmentScopeType
+  scopeId          String
+  kind             CommitmentPolicyKind
+  thresholdMinutes Int?
+  thresholdHours   Int?
+  severity         CommitmentSeverity
+  isActive         Boolean              @default(true)
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+  workspace        Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  exceptionCases   ExceptionCase[]
+
+  @@unique([workspaceId, scopeType, scopeId, kind])
+  @@index([workspaceId, isActive, scopeType, scopeId])
+  @@index([workspaceId, kind, isActive])
+}
+
+model ExceptionCase {
+  id                 String                  @id @default(cuid())
+  workspaceId        String
+  kind               CommitmentPolicyKind
+  status             ExceptionStatus         @default(OPEN)
+  severity           CommitmentSeverity
+  sourcePolicyId     String
+  taskId             String?
+  recurringExecutionId String?
+  ownerId            String?
+  openedAt           DateTime               @default(now())
+  acknowledgedAt     DateTime?
+  snoozedUntil       DateTime?
+  resolvedAt         DateTime?
+  resolutionKind     ExceptionResolutionKind?
+  fingerprint        String
+  title              String
+  details            Json
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+  workspace          Workspace              @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  sourcePolicy       CommitmentPolicy       @relation(fields: [sourcePolicyId], references: [id], onDelete: Cascade)
+  task               Task?                  @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  recurringExecution RecurringExecution?    @relation(fields: [recurringExecutionId], references: [id], onDelete: Cascade)
+  owner              User?                  @relation("ExceptionCaseOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  emailDeliveries    ExceptionEmailDelivery[]
+
+  @@index([workspaceId, fingerprint])
+  @@index([workspaceId, status, severity, openedAt])
+  @@index([sourcePolicyId, status])
+  @@index([taskId, status])
+  @@index([recurringExecutionId, status])
+}
+
+model ExceptionEmailDelivery {
+  id              String                      @id @default(cuid())
+  workspaceId     String
+  exceptionCaseId String
+  event           ExceptionEmailDeliveryEvent
+  recipientUserId String?
+  recipientEmail  String
+  subject         String
+  body            String
+  deliveredAt     DateTime                    @default(now())
+  createdAt       DateTime                    @default(now())
+  workspace       Workspace                   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  exceptionCase   ExceptionCase               @relation(fields: [exceptionCaseId], references: [id], onDelete: Cascade)
+  recipientUser   User?                       @relation("ExceptionEmailDeliveryRecipient", fields: [recipientUserId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, deliveredAt])
+  @@index([exceptionCaseId, createdAt])
+  @@index([recipientUserId, deliveredAt])
 }
 
 model Membership {
@@ -265,6 +388,7 @@ model RecurringExecution {
   rerunOfExecution    RecurringExecution?      @relation("RecurringExecutionRerun", fields: [rerunOfExecutionId], references: [id], onDelete: SetNull)
   reruns              RecurringExecution[]     @relation("RecurringExecutionRerun")
   generatedTasks      Task[]
+  exceptionCases      ExceptionCase[]
 
   @@index([recurringScheduleId, scheduledFor])
   @@index([workspaceId, startedAt])
@@ -304,6 +428,7 @@ model Task {
   reviewedBy          User?            @relation("TaskReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
   comments            Comment[]
   activityEvents      ActivityEvent[]
+  exceptionCases      ExceptionCase[]
 
   @@index([projectId, status])
   @@index([recurringExecutionId])

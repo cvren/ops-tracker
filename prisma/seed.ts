@@ -1,6 +1,12 @@
 import {
   ActivityEventType,
   BlockedCategory,
+  CommitmentPolicyKind,
+  CommitmentScopeType,
+  CommitmentSeverity,
+  ExceptionEmailDeliveryEvent,
+  ExceptionResolutionKind,
+  ExceptionStatus,
   ProjectStatus,
   RecurringCadence,
   RecurringExecutionStatus,
@@ -16,8 +22,17 @@ import {
 } from "../src/lib/activity";
 import { hashPassword } from "../src/lib/auth";
 import { getEnv } from "../src/lib/env";
+import {
+  buildExceptionFingerprint,
+  getExceptionCaseDetails,
+  syncExceptionLedgerForWorkspace
+} from "../src/lib/exception-cases";
 import { buildTaskFromTemplateValues } from "../src/lib/manager-mutations";
 import { prisma } from "../src/lib/prisma";
+import {
+  buildExceptionEmailMessage,
+  createExceptionEmailDeliveries
+} from "../src/lib/exception-response";
 
 function atNoonOffset(daysFromToday: number) {
   const date = new Date();
@@ -33,6 +48,10 @@ function atNoonOffset(daysFromToday: number) {
 
 function hoursAgo(hours: number) {
   return new Date(Date.now() - hours * 60 * 60 * 1000);
+}
+
+function hoursFromNow(hours: number) {
+  return new Date(Date.now() + hours * 60 * 60 * 1000);
 }
 
 async function main() {
@@ -170,6 +189,24 @@ async function main() {
   }
 
   await prisma.recurringSchedule.deleteMany({
+    where: {
+      workspaceId: workspace.id
+    }
+  });
+
+  await prisma.exceptionEmailDelivery.deleteMany({
+    where: {
+      workspaceId: workspace.id
+    }
+  });
+
+  await prisma.exceptionCase.deleteMany({
+    where: {
+      workspaceId: workspace.id
+    }
+  });
+
+  await prisma.commitmentPolicy.deleteMany({
     where: {
       workspaceId: workspace.id
     }
@@ -465,6 +502,8 @@ async function main() {
         updatedById: operator.id,
         startedAt: hoursAgo(30),
         dueDate: atNoonOffset(-1),
+        createdAt: hoursAgo(30),
+        updatedAt: hoursAgo(18),
         blockedReason:
           "Carrier engineering has not confirmed the production patch window.",
         blockedCategory: BlockedCategory.DEPENDENCY
@@ -485,6 +524,8 @@ async function main() {
         updatedById: admin.id,
         startedAt: hoursAgo(36),
         dueDate: atNoonOffset(-2),
+        createdAt: hoursAgo(40),
+        updatedAt: hoursAgo(20),
         blockedReason:
           "Infra approval is still pending for the warehouse firewall change.",
         blockedCategory: BlockedCategory.EXTERNAL
@@ -520,6 +561,7 @@ async function main() {
         reviewerId: null,
         createdById: admin.id,
         updatedById: admin.id,
+        createdAt: hoursAgo(40),
         dueDate: atNoonOffset(3)
       }
     });
@@ -536,6 +578,7 @@ async function main() {
         reviewerId: reviewer.id,
         createdById: admin.id,
         updatedById: admin.id,
+        createdAt: hoursAgo(30),
         dueDate: atNoonOffset(2)
       }
     });
@@ -687,6 +730,66 @@ async function main() {
         triggeredBy: RecurringTriggerSource.USER,
         triggeredByUserId: manager.id
       }
+    });
+
+    await tx.commitmentPolicy.createMany({
+      data: [
+        {
+          workspaceId: workspace.id,
+          name: "Workspace overdue watch",
+          scopeType: CommitmentScopeType.WORKSPACE,
+          scopeId: workspace.id,
+          kind: CommitmentPolicyKind.OVERDUE,
+          thresholdMinutes: null,
+          thresholdHours: 1,
+          severity: CommitmentSeverity.HIGH,
+          isActive: true
+        },
+        {
+          workspaceId: workspace.id,
+          name: "Retail review stale watch",
+          scopeType: CommitmentScopeType.PROJECT,
+          scopeId: beta.id,
+          kind: CommitmentPolicyKind.REVIEW_STALE,
+          thresholdMinutes: null,
+          thresholdHours: 24,
+          severity: CommitmentSeverity.HIGH,
+          isActive: true
+        },
+        {
+          workspaceId: workspace.id,
+          name: "Retail blocked stall watch",
+          scopeType: CommitmentScopeType.PROJECT,
+          scopeId: beta.id,
+          kind: CommitmentPolicyKind.BLOCKED_STALE,
+          thresholdMinutes: null,
+          thresholdHours: 4,
+          severity: CommitmentSeverity.CRITICAL,
+          isActive: true
+        },
+        {
+          workspaceId: workspace.id,
+          name: "Workspace unassigned ownership watch",
+          scopeType: CommitmentScopeType.WORKSPACE,
+          scopeId: workspace.id,
+          kind: CommitmentPolicyKind.UNASSIGNED_STALE,
+          thresholdMinutes: null,
+          thresholdHours: 12,
+          severity: CommitmentSeverity.MEDIUM,
+          isActive: true
+        },
+        {
+          workspaceId: workspace.id,
+          name: "Recovery retry recurring failure watch",
+          scopeType: CommitmentScopeType.TEMPLATE,
+          scopeId: recoveryRetryTemplate.id,
+          kind: CommitmentPolicyKind.RECURRING_FAILED,
+          thresholdMinutes: null,
+          thresholdHours: 1,
+          severity: CommitmentSeverity.CRITICAL,
+          isActive: true
+        }
+      ]
     });
 
     const doneTask = await tx.task.create({
@@ -1261,8 +1364,209 @@ async function main() {
     `;
   });
 
+  await syncExceptionLedgerForWorkspace({
+    workspaceId: workspace.id
+  });
+
+  const [activeCases, overduePolicy, completedTask] = await Promise.all([
+    prisma.exceptionCase.findMany({
+      where: {
+        workspaceId: workspace.id,
+        status: {
+          in: [
+            ExceptionStatus.OPEN,
+            ExceptionStatus.ACKNOWLEDGED,
+            ExceptionStatus.SNOOZED
+          ]
+        }
+      },
+      include: {
+        sourcePolicy: {
+          select: {
+            id: true,
+            name: true
+          }
+        }
+      }
+    }),
+    prisma.commitmentPolicy.findFirst({
+      where: {
+        workspaceId: workspace.id,
+        kind: CommitmentPolicyKind.OVERDUE,
+        name: "Workspace overdue watch"
+      },
+      select: {
+        id: true,
+        name: true
+      }
+    }),
+    prisma.task.findFirst({
+      where: {
+        project: {
+          workspaceId: workspace.id
+        },
+        title: "Reissue launch comms pack"
+      },
+      select: {
+        id: true,
+        title: true,
+        project: {
+          select: {
+            id: true,
+            code: true,
+            name: true
+          }
+        }
+      }
+    })
+  ]);
+
+  const reviewCase = activeCases.find(
+    (exceptionCase) => exceptionCase.kind === CommitmentPolicyKind.REVIEW_STALE
+  );
+  const unassignedCase = activeCases.find(
+    (exceptionCase) => exceptionCase.kind === CommitmentPolicyKind.UNASSIGNED_STALE
+  );
+
+  await prisma.$transaction(async (tx) => {
+    if (reviewCase) {
+      await tx.exceptionCase.update({
+        where: {
+          id: reviewCase.id
+        },
+        data: {
+          status: ExceptionStatus.ACKNOWLEDGED,
+          acknowledgedAt: hoursAgo(2),
+          ownerId: manager.id
+        }
+      });
+
+      await createActivityEvent(tx, {
+        workspaceId: workspace.id,
+        projectId: getExceptionCaseDetails(reviewCase.details)?.projectId ?? null,
+        taskId: reviewCase.taskId,
+        actorId: manager.id,
+        type: ActivityEventType.EXCEPTION_CASE_ACKNOWLEDGED,
+        payload: {
+          exceptionCaseId: reviewCase.id,
+          summary: `acknowledged exception ${reviewCase.title}`
+        }
+      });
+
+      await createActivityEvent(tx, {
+        workspaceId: workspace.id,
+        projectId: getExceptionCaseDetails(reviewCase.details)?.projectId ?? null,
+        taskId: reviewCase.taskId,
+        actorId: manager.id,
+        type: ActivityEventType.EXCEPTION_CASE_ASSIGNED,
+        payload: {
+          exceptionCaseId: reviewCase.id,
+          ownerId: manager.id,
+          summary: `assigned exception ${reviewCase.title} to ${manager.name}`
+        },
+        notificationUserIds: [manager.id]
+      });
+
+      const reviewMessage = buildExceptionEmailMessage({
+        event: ExceptionEmailDeliveryEvent.ASSIGNED,
+        kind: reviewCase.kind,
+        policyName: reviewCase.sourcePolicy.name,
+        projectCode:
+          getExceptionCaseDetails(reviewCase.details)?.projectCode ?? "OPS-BETA",
+        severity: reviewCase.severity,
+        sourceSummary:
+          getExceptionCaseDetails(reviewCase.details)?.summary ?? reviewCase.title,
+        title: reviewCase.title
+      });
+
+      await createExceptionEmailDeliveries(tx, {
+        workspaceId: workspace.id,
+        exceptionCaseId: reviewCase.id,
+        event: ExceptionEmailDeliveryEvent.ASSIGNED,
+        recipients: [
+          {
+            recipientUserId: manager.id,
+            recipientEmail: manager.email
+          }
+        ],
+        subject: reviewMessage.subject,
+        body: reviewMessage.body
+      });
+    }
+
+    if (unassignedCase) {
+      await tx.exceptionCase.update({
+        where: {
+          id: unassignedCase.id
+        },
+        data: {
+          status: ExceptionStatus.SNOOZED,
+          acknowledgedAt: hoursAgo(1),
+          ownerId: manager.id,
+          snoozedUntil: hoursFromNow(24)
+        }
+      });
+
+      await createActivityEvent(tx, {
+        workspaceId: workspace.id,
+        projectId:
+          getExceptionCaseDetails(unassignedCase.details)?.projectId ?? null,
+        taskId: unassignedCase.taskId,
+        actorId: manager.id,
+        type: ActivityEventType.EXCEPTION_CASE_SNOOZED,
+        payload: {
+          exceptionCaseId: unassignedCase.id,
+          snoozedUntil: hoursFromNow(24),
+          summary: `snoozed exception ${unassignedCase.title} for 24h`
+        }
+      });
+    }
+
+    if (overduePolicy && completedTask) {
+      await tx.exceptionCase.create({
+        data: {
+          workspaceId: workspace.id,
+          kind: CommitmentPolicyKind.OVERDUE,
+          status: ExceptionStatus.RESOLVED,
+          severity: CommitmentSeverity.LOW,
+          sourcePolicyId: overduePolicy.id,
+          taskId: completedTask.id,
+          recurringExecutionId: null,
+          ownerId: manager.id,
+          openedAt: hoursAgo(30),
+          acknowledgedAt: hoursAgo(28),
+          snoozedUntil: null,
+          resolvedAt: hoursAgo(24),
+          resolutionKind: ExceptionResolutionKind.MANUAL,
+          fingerprint: buildExceptionFingerprint({
+            kind: CommitmentPolicyKind.OVERDUE,
+            sourcePolicyId: overduePolicy.id,
+            taskId: completedTask.id
+          }),
+          title: `Overdue: ${completedTask.title}`,
+          details: {
+            observedForLabel: "historical",
+            policyName: overduePolicy.name,
+            projectCode: completedTask.project.code,
+            projectId: completedTask.project.id,
+            projectName: completedTask.project.name,
+            scopeId: workspace.id,
+            scopeType: CommitmentScopeType.WORKSPACE,
+            sourceId: completedTask.id,
+            sourceLabel: completedTask.title,
+            sourceType: "TASK",
+            summary:
+              "Historical manual closeout used to demo resolved exception history.",
+            taskStatus: TaskStatus.DONE,
+            thresholdLabel: "1h"
+          }
+        }
+      });
+    }
+  });
+
   console.log(
-    "Seeded ops-tracker v0.4.0 release-ready demo data."
+    "Seeded ops-tracker demo data with the v0.5.0 Phase 3 response workflow."
   );
   console.log(`Admin login: ${env.OPS_TRACKER_DEMO_EMAIL}`);
   console.log(`Manager login: ${env.OPS_TRACKER_MANAGER_EMAIL}`);

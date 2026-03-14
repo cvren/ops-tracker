@@ -6,6 +6,11 @@ import {
 } from "@prisma/client";
 
 import { getActivitySummary } from "@/lib/activity";
+import { attachTaskRiskMetadataFromExceptionCases } from "@/lib/exception-case-data";
+import {
+  activeExceptionStatuses,
+  syncExceptionLedgerForWorkspace
+} from "@/lib/exception-cases";
 import { prisma } from "@/lib/prisma";
 import { type TaskView } from "@/lib/constants";
 import { getTaskViewOrderBy, getTaskViewWhere } from "@/lib/task-views";
@@ -361,8 +366,19 @@ export async function getProjectById(projectId: string) {
 export async function listTasks(filters: TaskFilters = {}) {
   const context = await getCurrentWorkspaceContext();
   const query = filters.query?.trim();
+  const taskViewWhere =
+    filters.view === "high-risk"
+      ? {}
+      : getTaskViewWhere({
+          view: filters.view,
+          userId: context.user.id
+        });
 
-  return prisma.task.findMany({
+  await syncExceptionLedgerForWorkspace({
+    workspaceId: context.workspace.id
+  });
+
+  const tasks = await prisma.task.findMany({
     where: {
       project: {
         workspaceId: context.workspace.id
@@ -372,13 +388,12 @@ export async function listTasks(filters: TaskFilters = {}) {
       reviewerId: filters.reviewerId,
       status: filters.status,
       priority: filters.priority,
-      ...getTaskViewWhere({
-        view: filters.view,
-        userId: context.user.id
-      }),
+      ...taskViewWhere,
       ...(query ? getTaskSearchWhere(query) : {})
     },
-    orderBy: getTaskViewOrderBy(filters.view),
+    orderBy: getTaskViewOrderBy(
+      filters.view === "high-risk" ? undefined : filters.view
+    ),
     include: {
       project: {
         select: {
@@ -398,9 +413,84 @@ export async function listTasks(filters: TaskFilters = {}) {
           id: true,
           name: true
         }
+      },
+      recurringExecution: {
+        select: {
+          recurringSchedule: {
+            select: {
+              templateId: true
+            }
+          }
+        }
       }
     }
   });
+
+  const openExceptionCases =
+    tasks.length === 0
+      ? []
+      : await prisma.exceptionCase.findMany({
+          where: {
+            workspaceId: context.workspace.id,
+            status: {
+              in: [...activeExceptionStatuses]
+            },
+            taskId: {
+              in: tasks.map((task) => task.id)
+            }
+          },
+          select: {
+            id: true,
+            kind: true,
+            severity: true,
+            sourcePolicyId: true,
+            taskId: true,
+            recurringExecutionId: true,
+            details: true,
+            sourcePolicy: {
+              select: {
+                id: true,
+                name: true,
+                scopeId: true,
+                scopeType: true
+              }
+            }
+          }
+        });
+
+  const tasksWithRisk = attachTaskRiskMetadataFromExceptionCases({
+    cases: openExceptionCases,
+    tasks
+  });
+
+  if (filters.view !== "high-risk") {
+    return tasksWithRisk;
+  }
+
+  return tasksWithRisk
+    .filter((task) => task.risk.hits.length > 0)
+    .sort((left, right) => {
+      const severityOrder = {
+        CRITICAL: 4,
+        HIGH: 3,
+        MEDIUM: 2,
+        LOW: 1,
+        NONE: 0
+      } as const;
+
+      const severityDelta =
+        severityOrder[right.risk.highestSeverity ?? "NONE"] -
+        severityOrder[left.risk.highestSeverity ?? "NONE"];
+
+      if (severityDelta !== 0) {
+        return severityDelta;
+      }
+
+      return (
+        (left.dueDate?.getTime() ?? left.updatedAt.getTime()) -
+        (right.dueDate?.getTime() ?? right.updatedAt.getTime())
+      );
+    });
 }
 
 export async function getTaskById(taskId: string) {
